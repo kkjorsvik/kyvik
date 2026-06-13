@@ -1,0 +1,151 @@
+{{define "card-rest_api"}}
+<div class="card mt-2" id="card-rest_api">
+  <div class="card-header">
+    <h3>REST API Endpoints</h3>
+    {{if can .User "agent.edit"}}
+    <button class="btn-edit-section"
+            hx-get="/agents/{{.Agent.ID}}/edit/rest_api"
+            hx-target="body" hx-swap="beforeend"
+            title="Edit REST API Endpoints">&#9998;</button>
+    {{end}}
+  </div>
+  <div class="card-body" style="padding: 16px;">
+    <p style="color: var(--text-secondary); font-size: 13px;">
+      Pre-configured API endpoints this agent can call via the <code>rest_api</code> tool.
+      Auth is injected from the secrets vault at call time.
+    </p>
+    <div hx-get="/agents/{{.Agent.ID}}/rest-api"
+         hx-trigger="load"
+         hx-swap="innerHTML">
+      <span style="color: var(--text-muted);">Loading...</span>
+    </div>
+  </div>
+</div>
+{{end}}
+
+{{define "modal-rest_api"}}
+<dialog class="edit-section-dialog" style="max-width: 700px;">
+  <form hx-post="/agents/{{.Agent.ID}}/edit/rest_api"
+        hx-target="#card-rest_api" hx-swap="outerHTML">
+    <div class="dialog-header">
+      <h3>Edit REST API Endpoints</h3>
+      <button type="button" class="btn-edit-section" onclick="this.closest('dialog').close()" title="Close">&times;</button>
+    </div>
+    <div class="dialog-body">
+      <div id="endpoint-list">
+        {{if .RESTEndpoints}}
+        {{range $i, $ep := .RESTEndpoints}}
+        <div class="endpoint-row" style="border: 1px solid var(--border-color); border-radius: 6px; padding: 12px; margin-bottom: 12px;">
+          <div style="display: flex; gap: 8px;">
+            <div class="form-group" style="flex: 2;">
+              <label>Name</label>
+              <input type="text" name="endpoint_name_{{$i}}" value="{{$ep.Name}}" class="form-input" required>
+            </div>
+            <div class="form-group" style="flex: 1;">
+              <label>Method</label>
+              <select name="endpoint_method_{{$i}}" class="form-input">
+                <option value="GET" {{if eq $ep.Method "GET"}}selected{{end}}>GET</option>
+                <option value="POST" {{if eq $ep.Method "POST"}}selected{{end}}>POST</option>
+                <option value="PUT" {{if eq $ep.Method "PUT"}}selected{{end}}>PUT</option>
+                <option value="PATCH" {{if eq $ep.Method "PATCH"}}selected{{end}}>PATCH</option>
+                <option value="DELETE" {{if eq $ep.Method "DELETE"}}selected{{end}}>DELETE</option>
+              </select>
+            </div>
+          </div>
+          <div class="form-group">
+            <label>URL</label>
+            <input type="text" name="endpoint_url_{{$i}}" value="{{$ep.URL}}" class="form-input" placeholder="https://api.example.com/v1/...">
+          </div>
+          <div class="form-group">
+            <label>Description</label>
+            <input type="text" name="endpoint_description_{{$i}}" value="{{$ep.Description}}" class="form-input">
+          </div>
+          <details>
+            <summary style="cursor: pointer; color: var(--primary); font-size: 12px;">Auth &amp; Advanced</summary>
+            <div style="margin-top: 8px;">
+              <div style="display: flex; gap: 8px;">
+                <div class="form-group" style="flex: 1;">
+                  <label>Auth Type</label>
+                  <select name="endpoint_auth_type_{{$i}}" class="form-input">
+                    <option value="none" {{if eq $ep.Auth.Type "none"}}selected{{end}}>None</option>
+                    <option value="bearer" {{if eq $ep.Auth.Type "bearer"}}selected{{end}}>Bearer</option>
+                    <option value="basic" {{if eq $ep.Auth.Type "basic"}}selected{{end}}>Basic</option>
+                    <option value="api_key" {{if eq $ep.Auth.Type "api_key"}}selected{{end}}>API Key</option>
+                    <option value="custom_header" {{if eq $ep.Auth.Type "custom_header"}}selected{{end}}>Custom Header</option>
+                  </select>
+                </div>
+                <div class="form-group" style="flex: 1;">
+                  <label>Secret Ref (vault key)</label>
+                  <input type="text" name="endpoint_auth_secret_{{$i}}" value="{{$ep.Auth.SecretRef}}" class="form-input" placeholder="api:key_name">
+                </div>
+              </div>
+              <div class="form-group">
+                <label>Auth Header</label>
+                <input type="text" name="endpoint_auth_header_{{$i}}" value="{{$ep.Auth.HeaderName}}" class="form-input" placeholder="X-API-Key">
+              </div>
+              <div class="form-group">
+                <label>Body Template</label>
+                <textarea name="endpoint_body_template_{{$i}}" rows="2" class="form-textarea">{{$ep.BodyTemplate}}</textarea>
+              </div>
+              <div class="form-group">
+                <label>Response Template</label>
+                <textarea name="endpoint_response_template_{{$i}}" rows="2" class="form-textarea">{{$ep.ResponseTemplate}}</textarea>
+              </div>
+              <div style="display: flex; gap: 8px;">
+                <div class="form-group" style="flex: 1; margin-bottom: 0;">
+                  <label>Cache TTL (seconds)</label>
+                  <input type="number" name="endpoint_cache_{{$i}}" value="{{$ep.CacheTTLSeconds}}" class="form-input">
+                </div>
+                <div class="form-group" style="flex: 1; margin-bottom: 0;">
+                  <label>Rate Limit (RPM)</label>
+                  <input type="number" name="endpoint_rate_{{$i}}" value="{{$ep.RateLimitRPM}}" class="form-input">
+                </div>
+                <div class="form-group" style="flex: 1; margin-bottom: 0;">
+                  <label>Timeout (seconds)</label>
+                  <input type="number" name="endpoint_timeout_{{$i}}" value="{{$ep.TimeoutSeconds}}" class="form-input">
+                </div>
+              </div>
+            </div>
+          </details>
+        </div>
+        {{end}}
+        {{end}}
+      </div>
+      <input type="hidden" name="endpoint_count" id="endpoint-count" value="{{if .RESTEndpoints}}{{len .RESTEndpoints}}{{else}}0{{end}}">
+      <button type="button" class="btn btn-sm btn-secondary" onclick="addEndpointRow()">+ Add Endpoint</button>
+    </div>
+    <div class="dialog-footer">
+      <button type="button" class="btn btn-secondary" onclick="this.closest('dialog').close()">Cancel</button>
+      <button type="submit" class="btn btn-primary">Save</button>
+    </div>
+  </form>
+</dialog>
+<script>
+function addEndpointRow() {
+  var countEl = document.getElementById('endpoint-count');
+  var idx = parseInt(countEl.value);
+  var list = document.getElementById('endpoint-list');
+  var row = document.createElement('div');
+  row.className = 'endpoint-row';
+  row.style.cssText = 'border: 1px solid var(--border-color); border-radius: 6px; padding: 12px; margin-bottom: 12px;';
+  var h = '';
+  h += '<div style="display:flex;gap:8px;">';
+  h += '<div class="form-group" style="flex:2;"><label>Name</label>';
+  h += '<input type="text" name="endpoint_name_'+idx+'" class="form-input" required></div>';
+  h += '<div class="form-group" style="flex:1;"><label>Method</label>';
+  h += '<select name="endpoint_method_'+idx+'" class="form-input">';
+  h += '<option value="GET">GET</option><option value="POST">POST</option>';
+  h += '<option value="PUT">PUT</option><option value="PATCH">PATCH</option>';
+  h += '<option value="DELETE">DELETE</option></select></div></div>';
+  h += '<div class="form-group">';
+  h += '<label>URL</label>';
+  h += '<input type="text" name="endpoint_url_'+idx+'" class="form-input" placeholder="https://api.example.com/v1/..."></div>';
+  h += '<div class="form-group">';
+  h += '<label>Description</label>';
+  h += '<input type="text" name="endpoint_description_'+idx+'" class="form-input"></div>';
+  row.innerHTML = h;
+  list.appendChild(row);
+  countEl.value = idx + 1;
+}
+</script>
+{{end}}

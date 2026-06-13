@@ -1,0 +1,84 @@
+{{define "integrations-list"}}
+<div class="page-header">
+  <div>
+    <h2>Integrations</h2>
+    <p>Browse and install service integrations for your agents</p>
+  </div>
+  <div style="display: flex; gap: 0.5rem;">
+    <form method="POST" action="/integrations/refresh" style="display: inline;">
+      <button type="submit" class="btn btn-secondary" hx-post="/integrations/refresh">Refresh</button>
+    </form>
+    <a href="/integrations/new" class="btn btn-primary">Create Custom</a>
+  </div>
+</div>
+
+{{if .Categories}}
+<div class="tabs mb-2" style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
+  <a href="/integrations" class="btn {{if not .ActiveCategory}}btn-primary{{else}}btn-secondary{{end}}" hx-get="/integrations" hx-target=".main-content" hx-push-url="true">All</a>
+  {{range .Categories}}
+  <a href="/integrations?category={{.}}" class="btn {{if eq (print .) $.ActiveCategory}}btn-primary{{else}}btn-secondary{{end}}" hx-get="/integrations?category={{.}}" hx-target=".main-content" hx-push-url="true">{{.}}</a>
+  {{end}}
+</div>
+{{end}}
+
+{{if .NativeTools}}
+<div class="card mt-2" style="margin-bottom: 1.5rem;">
+  <div class="card-header">
+    <h3>Native KTP Tools</h3>
+    <p style="margin: 0; color: var(--text-muted); font-size: 0.9rem;">Built-in tools that require an API key — click to configure and grant to an agent.</p>
+  </div>
+  <div class="card-body" style="padding: 0;">
+    <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 1rem; padding: 1rem;">
+      {{range .NativeTools}}
+      <div class="card" style="cursor: pointer; margin: 0;" onclick="window.location='/integrations/native/{{.Name}}'">
+        <div class="card-body">
+          <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 0.5rem;">
+            <h3 style="margin: 0;">{{.DisplayName}}</h3>
+            <span class="badge badge-info">{{.Category}}</span>
+          </div>
+          <p style="color: var(--text-muted); margin-bottom: 0.75rem;">{{.Description}}</p>
+          <div style="display: flex; justify-content: space-between; align-items: center;">
+            <span style="font-size: 0.85rem; color: var(--text-muted);">Auth: {{.Auth.Type}}</span>
+            <span class="badge badge-running">native</span>
+          </div>
+        </div>
+      </div>
+      {{end}}
+    </div>
+  </div>
+</div>
+{{end}}
+
+<div id="integration-grid">
+{{if .Templates}}
+<div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 1rem;">
+  {{range .Templates}}
+  <div class="card" style="cursor: pointer;" onclick="window.location='/integrations/{{.Name}}'">
+    <div class="card-body">
+      <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 0.5rem;">
+        <h3 style="margin: 0;">{{.DisplayName}}</h3>
+        <span class="badge badge-info">{{.Category}}</span>
+      </div>
+      <p style="color: var(--text-muted); margin-bottom: 0.75rem;">{{.Description}}</p>
+      <div style="display: flex; justify-content: space-between; align-items: center;">
+        <span style="font-size: 0.85rem; color: var(--text-muted);">
+          {{len .Endpoints}} endpoint{{if ne (len .Endpoints) 1}}s{{end}}
+          {{if .Prompts}} &middot; includes skill prompt{{end}}
+        </span>
+        <span class="badge {{if eq .Source "builtin"}}badge-running{{else}}badge-stopped{{end}}">{{.Source}}</span>
+      </div>
+      <div style="margin-top: 0.5rem; font-size: 0.85rem; color: var(--text-muted);">
+        Auth: {{.Auth.Type}} &middot; v{{.Version}}
+      </div>
+    </div>
+  </div>
+  {{end}}
+</div>
+{{else}}
+<div class="empty-state">
+  <h3>No integrations found</h3>
+  <p>No integration templates are available. Try refreshing or create a custom integration.</p>
+</div>
+{{end}}
+</div>
+{{end}}

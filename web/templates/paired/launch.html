@@ -1,0 +1,97 @@
+{{define "paired-launch"}}
+<div class="page-header">
+  <div>
+    <h2>New Paired Conversation</h2>
+    <p>Launch a live turn-based exchange between two running agents.</p>
+  </div>
+  <a href="/paired" class="btn btn-secondary">Back to Conversations</a>
+</div>
+
+<div class="card" style="margin-bottom: 12px; border-left: 4px solid var(--primary);">
+  <div class="card-body">
+    <strong>Warning:</strong> Paired conversations consume tokens for both agents. Monitor costs in the live viewer.
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-body">
+    <form method="POST" action="/paired">
+      <div class="form-group">
+        <label for="agent_a">Agent A</label>
+        <select id="agent_a" name="agent_a" class="form-select" required onchange="syncAgentBOptions()">
+          <option value="">Select Agent A...</option>
+          {{range .Agents}}
+          <option value="{{.ID}}" {{if eq $.PrefillAgentA .ID}}selected{{end}}>{{.Name}} ({{.ID}})</option>
+          {{end}}
+        </select>
+      </div>
+
+      <div class="form-group mt-2">
+        <label for="agent_b">Agent B</label>
+        <select id="agent_b" name="agent_b" class="form-select" required>
+          <option value="">Select Agent B...</option>
+          {{range .Agents}}
+          <option value="{{.ID}}" {{if eq $.PrefillAgentB .ID}}selected{{end}}>{{.Name}} ({{.ID}})</option>
+          {{end}}
+        </select>
+      </div>
+
+      <div class="form-group mt-2">
+        <label for="topic">Topic / Opening Prompt</label>
+        <textarea id="topic" name="topic" rows="5" class="form-textarea" required placeholder="Discuss rollout strategy for v2 and identify high-risk assumptions...">{{.PrefillTopic}}</textarea>
+      </div>
+
+      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px;" class="mt-2">
+        <div class="form-group">
+          <label for="max_turns">Max Turns per agent</label>
+          <input id="max_turns" name="max_turns" type="number" class="form-input" min="1" value="{{.DefaultTurns}}" />
+        </div>
+        <div class="form-group">
+          <label for="turn_delay_ms">Turn Delay</label>
+          <select id="turn_delay_ms" name="turn_delay_ms" class="form-select">
+            <option value="1000">1 second</option>
+            <option value="2000" selected>2 seconds</option>
+            <option value="5000">5 seconds</option>
+            <option value="10000">10 seconds</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="form-group mt-2">
+        <label style="display: inline-flex; align-items: center; gap: 8px;">
+          <input type="checkbox" name="allow_user_injection" checked />
+          Allow User Injection
+        </label>
+      </div>
+
+      <div class="form-group mt-2">
+        <label for="auto_stop_phrases">Auto-Stop Phrases <span style="color: var(--text-muted);">(one per line)</span></label>
+        <textarea id="auto_stop_phrases" name="auto_stop_phrases" rows="4" class="form-textarea" placeholder="final answer complete\nstop now"></textarea>
+      </div>
+
+      <div style="display:flex; justify-content:flex-end; gap: 8px; margin-top: 16px;">
+        <a href="/paired" class="btn btn-secondary">Cancel</a>
+        <button class="btn btn-primary" type="submit">Start Conversation</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script>
+function syncAgentBOptions() {
+  var a = document.getElementById('agent_a');
+  var b = document.getElementById('agent_b');
+  if (!a || !b) return;
+  var selectedA = a.value;
+  for (var i = 0; i < b.options.length; i++) {
+    var opt = b.options[i];
+    if (!opt.value) continue;
+    opt.disabled = (opt.value === selectedA);
+    if (opt.disabled && b.value === opt.value) {
+      b.value = '';
+    }
+  }
+}
+document.addEventListener('DOMContentLoaded', syncAgentBOptions);
+</script>
+{{end}}

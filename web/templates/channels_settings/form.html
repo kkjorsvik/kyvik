@@ -1,0 +1,93 @@
+{{define "channels-settings-form"}}
+<div class="page-header">
+  <div>
+    <h2>Configure {{.Channel.DisplayName}}</h2>
+    <p>{{.Channel.Description}}</p>
+  </div>
+  <a href="/channels/settings" class="btn btn-secondary">Back to Channels</a>
+</div>
+
+<div class="card" style="max-width: 640px;">
+  <div class="card-body">
+    <form method="POST" action="/channels/settings/{{.ChannelType}}" id="channel-form">
+      <input type="hidden" name="channel_type" value="{{.ChannelType}}">
+      <div style="display: flex; flex-direction: column; gap: 16px;">
+
+        {{if eq .ChannelType "slack"}}
+        <!-- Slack fields -->
+        <div>
+          <label style="display: block; margin-bottom: 4px; font-size: 13px; color: var(--text-secondary);">Bot Token</label>
+          <input type="password" name="bot_token" class="form-input" placeholder="{{if eq (index .Tokens "bot_token_set") "true"}}Leave blank to keep existing token{{else}}xoxb-...{{end}}"
+            autocomplete="off">
+          {{if eq (index .Tokens "bot_token_set") "true"}}
+          <div style="font-size: 12px; color: var(--text-muted); margin-top: 4px;">Token is set. Leave blank to keep existing.</div>
+          {{end}}
+        </div>
+
+        <div>
+          <label style="display: block; margin-bottom: 4px; font-size: 13px; color: var(--text-secondary);">App Token</label>
+          <input type="password" name="app_token" class="form-input" placeholder="{{if eq (index .Tokens "app_token_set") "true"}}Leave blank to keep existing token{{else}}xapp-...{{end}}"
+            autocomplete="off">
+          {{if eq (index .Tokens "app_token_set") "true"}}
+          <div style="font-size: 12px; color: var(--text-muted); margin-top: 4px;">Token is set. Leave blank to keep existing.</div>
+          {{end}}
+        </div>
+
+        <div>
+          <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+            <input type="checkbox" name="auto_provision" {{if eq (index .Tokens "auto_provision") "true"}}checked{{end}}>
+            <span style="font-size: 13px; color: var(--text-secondary);">Auto-provision channels for agents</span>
+          </label>
+          <div style="font-size: 12px; color: var(--text-muted); margin-top: 4px; margin-left: 24px;">
+            Automatically create a Slack channel for each agent that uses primary mode.
+          </div>
+        </div>
+        {{end}}
+
+        {{if eq .ChannelType "discord"}}
+        <!-- Discord fields -->
+        <div>
+          <label style="display: block; margin-bottom: 4px; font-size: 13px; color: var(--text-secondary);">Bot Token</label>
+          <input type="password" name="bot_token" class="form-input" placeholder="{{if eq (index .Tokens "bot_token_set") "true"}}Leave blank to keep existing token{{else}}Enter bot token...{{end}}"
+            autocomplete="off">
+          {{if eq (index .Tokens "bot_token_set") "true"}}
+          <div style="font-size: 12px; color: var(--text-muted); margin-top: 4px;">Token is set. Leave blank to keep existing.</div>
+          {{end}}
+        </div>
+
+        <div>
+          <label style="display: block; margin-bottom: 4px; font-size: 13px; color: var(--text-secondary);">Guild ID (Server ID)</label>
+          <input type="text" name="guild_id" class="form-input" placeholder="Enter Discord server ID..." value="{{index .Tokens "guild_id"}}">
+        </div>
+
+        <div>
+          <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+            <input type="checkbox" name="auto_provision" {{if eq (index .Tokens "auto_provision") "true"}}checked{{end}}>
+            <span style="font-size: 13px; color: var(--text-secondary);">Auto-provision channels for agents</span>
+          </label>
+          <div style="font-size: 12px; color: var(--text-muted); margin-top: 4px; margin-left: 24px;">
+            Automatically create a Discord channel for each agent that uses primary mode.
+          </div>
+        </div>
+        {{end}}
+
+        <!-- Test Connection -->
+        <div id="test-result"></div>
+
+        <div style="display: flex; gap: 8px; justify-content: space-between; margin-top: 8px;">
+          <button type="button" class="btn btn-secondary"
+                  hx-post="/channels/settings/test"
+                  hx-target="#test-result"
+                  hx-swap="innerHTML"
+                  hx-include="#channel-form">Test Connection</button>
+          <div style="display: flex; gap: 8px;">
+            <a href="/channels/settings" class="btn btn-secondary">Cancel</a>
+            <button type="submit" class="btn btn-primary">{{if .Channel.Enabled}}Update & Reconnect{{else}}Save & Enable{{end}}</button>
+          </div>
+        </div>
+
+      </div>
+    </form>
+  </div>
+</div>
+{{end}}

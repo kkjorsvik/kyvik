@@ -1,0 +1,141 @@
+{{define "agents-configure-from-template"}}
+<div class="page-header">
+  <div>
+    <h2>Configure Agent from Template</h2>
+    <p>Template: <strong>{{.TemplateName}}</strong></p>
+  </div>
+  <a href="/create-from-template" class="btn btn-secondary">Back to Templates</a>
+</div>
+
+{{if .Error}}<div class="alert alert-error">{{.Error}}</div>{{end}}
+
+<form method="POST" action="/create-from-template/{{.TemplateID}}" hx-post="/create-from-template/{{.TemplateID}}" hx-target="body">
+  <input type="hidden" name="from_template_id" value="{{.TemplateID}}">
+
+  <div class="form-group">
+    <label for="name">Name *</label>
+    <input type="text" id="name" name="name" class="form-input" required placeholder="e.g. Research Assistant" value="{{.Name}}">
+  </div>
+
+  <div class="form-group">
+    <label for="description">Description</label>
+    <input type="text" id="description" name="description" class="form-input" placeholder="What does this agent do?" value="{{.Description}}">
+  </div>
+
+  <div class="form-group">
+    <label for="provider">Model Provider *</label>
+    <select id="provider" name="provider" class="form-input" required>
+      <option value="">Select a provider...</option>
+      {{range .Providers}}
+      <option value="{{.Name}}" {{if eq $.SelectedProvider .Name}}selected{{end}}>{{.Name}}</option>
+      {{end}}
+    </select>
+  </div>
+
+  <div class="form-group">
+    <label for="model">Model Name *</label>
+    <input type="text" id="model" name="model" class="form-input" required placeholder="e.g. deepseek/deepseek-chat-v3-0324" value="{{.Model}}">
+  </div>
+
+  <div class="form-group">
+    <label>Permission Tier *</label>
+    <div class="radio-group">
+      {{range .Templates}}
+      <label class="radio-option">
+        <input type="radio" name="template" value="{{.Name}}" {{if eq $.SelectedTemplate .Name}}checked{{end}}>
+        <div>
+          <div class="radio-label">{{.Name}}</div>
+          <div class="radio-desc">{{.Description}}</div>
+        </div>
+      </label>
+      {{end}}
+    </div>
+  </div>
+
+  <details>
+    <summary style="cursor:pointer; font-weight:600; margin: 16px 0;">Advanced Settings</summary>
+
+    <div class="form-group">
+      <label for="system_prompt">System Prompt</label>
+      <textarea id="system_prompt" name="system_prompt" class="form-textarea" style="min-height: 120px;" placeholder="Custom system prompt...">{{.SystemPrompt}}</textarea>
+    </div>
+
+    <div class="form-group">
+      <label for="soul_content">Soul Content</label>
+      <textarea id="soul_content" name="soul_content" class="form-textarea" style="min-height: 120px;" placeholder="Soul personality definition...">{{.SoulContent}}</textarea>
+    </div>
+
+    <div class="form-group">
+      <label for="identity_content">Identity Content</label>
+      <textarea id="identity_content" name="identity_content" class="form-textarea" style="min-height: 120px;" placeholder="Identity description...">{{.IdentityContent}}</textarea>
+    </div>
+
+    <div style="display: flex; gap: 16px;">
+      <div class="form-group" style="flex:1;">
+        <label for="history_limit">History Limit</label>
+        <input type="number" id="history_limit" name="history_limit" class="form-input" value="{{.HistoryLimit}}" min="1">
+      </div>
+      <div class="form-group" style="flex:1;">
+        <label for="memory_limit">Memory Limit</label>
+        <input type="number" id="memory_limit" name="memory_limit" class="form-input" value="{{.MemoryLimit}}" min="0">
+      </div>
+    </div>
+
+    <div class="form-group">
+      <label>WebUI Enabled</label>
+      <div class="radio-group">
+        <label class="radio-option">
+          <input type="radio" name="webui_enabled" value="true" {{if .WebUIEnabled}}checked{{end}}>
+          <div><div class="radio-label">Yes</div></div>
+        </label>
+        <label class="radio-option">
+          <input type="radio" name="webui_enabled" value="false" {{if not .WebUIEnabled}}checked{{end}}>
+          <div><div class="radio-label">No</div></div>
+        </label>
+      </div>
+    </div>
+
+    <div class="form-group">
+      <label for="slack_mode">Slack Mode</label>
+      <select id="slack_mode" name="slack_mode" class="form-input" onchange="document.getElementById('slack-channel-field').style.display = this.value !== 'none' && this.value !== '' ? '' : 'none'">
+        <option value="none" {{if or (eq .SlackMode "none") (eq .SlackMode "")}}selected{{end}}>None</option>
+        <option value="primary" {{if eq .SlackMode "primary"}}selected{{end}}>Shared</option>
+        <option value="dedicated" {{if eq .SlackMode "dedicated"}}selected{{end}}>Dedicated</option>
+      </select>
+    </div>
+    <div class="form-group" id="slack-channel-field" style="{{if or (eq .SlackMode "none") (eq .SlackMode "")}}display:none{{end}}">
+      <label for="slack_channel">Slack Channel</label>
+      <input type="text" id="slack_channel" name="slack_channel" class="form-input" placeholder="Channel ID" value="{{.SlackChannel}}">
+    </div>
+
+    <div class="form-group">
+      <label for="discord_mode">Discord Mode</label>
+      <select id="discord_mode" name="discord_mode" class="form-input" onchange="document.getElementById('discord-channel-field').style.display = this.value !== 'none' && this.value !== '' ? '' : 'none'">
+        <option value="none" {{if or (eq .DiscordMode "none") (eq .DiscordMode "")}}selected{{end}}>None</option>
+        <option value="primary" {{if eq .DiscordMode "primary"}}selected{{end}}>Shared</option>
+        <option value="dedicated" {{if eq .DiscordMode "dedicated"}}selected{{end}}>Dedicated</option>
+      </select>
+    </div>
+    <div class="form-group" id="discord-channel-field" style="{{if or (eq .DiscordMode "none") (eq .DiscordMode "")}}display:none{{end}}">
+      <label for="discord_channel_id">Discord Channel ID</label>
+      <input type="text" id="discord_channel_id" name="discord_channel_id" class="form-input" placeholder="Channel ID" value="{{.DiscordChannelID}}">
+    </div>
+
+    <!-- Hidden fields for complex JSON config -->
+    <input type="hidden" name="model_slots_json" value="{{.ModelSlotsJSON}}">
+    <input type="hidden" name="routing_config_json" value="{{.RoutingConfigJSON}}">
+    <input type="hidden" name="tool_grants_json" value="{{.ToolGrantsJSON}}">
+    <input type="hidden" name="capability_grants_json" value="{{.CapabilityGrantsJSON}}">
+    <input type="hidden" name="security_config" value="{{.SecurityJSON}}">
+    <input type="hidden" name="circuit_breaker" value="{{.CircuitBreakerJSON}}">
+    <input type="hidden" name="heartbeat_config" value="{{.HeartbeatJSON}}">
+    <input type="hidden" name="compression_json" value="{{.CompressionJSON}}">
+    <input type="hidden" name="feedback_hooks_json" value="{{.FeedbackHooksJSON}}">
+    <input type="hidden" name="context_budget_json" value="{{.ContextBudgetJSON}}">
+  </details>
+
+  <div style="margin-top: 24px;">
+    <button type="submit" class="btn btn-success">Create Agent</button>
+  </div>
+</form>
+{{end}}

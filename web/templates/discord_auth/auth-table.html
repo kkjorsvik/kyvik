@@ -1,0 +1,69 @@
+{{define "discord-auth-table"}}
+<div id="discord-auth-table">
+  {{if .Auths}}
+  <table class="data-table" style="width: 100%;">
+    <thead>
+      <tr>
+        <th>Discord User ID</th>
+        <th>Status</th>
+        <th>Added By</th>
+        <th>Pairing Code</th>
+        <th>Updated</th>
+        <th>Actions</th>
+      </tr>
+    </thead>
+    <tbody>
+      {{range .Auths}}
+      <tr>
+        <td><code>{{.DiscordUserID}}</code></td>
+        <td>
+          {{if eq .Status "approved"}}
+            <span class="badge badge-running">Approved</span>
+          {{else if eq .Status "pending"}}
+            <span class="badge badge-warning">Pending</span>
+          {{else if eq .Status "denied"}}
+            <span class="badge badge-stopped">Denied</span>
+          {{else}}
+            <span class="badge badge-default">{{.Status}}</span>
+          {{end}}
+        </td>
+        <td>{{.AddedBy}}</td>
+        <td>
+          {{if .PairingCode}}
+            <code>{{.PairingCode}}</code>
+            {{if .CodeExpiresAt}}
+              <small style="color: var(--text-muted); margin-left: 4px;">
+                expires {{localTime .CodeExpiresAt "15:04"}}
+              </small>
+            {{end}}
+          {{else}}
+            <span style="color: var(--text-muted);">&mdash;</span>
+          {{end}}
+        </td>
+        <td>{{localTime .UpdatedAt "2006-01-02 15:04"}}</td>
+        <td style="display: flex; gap: 4px;">
+          {{if eq .Status "pending"}}
+            <button class="btn btn-sm btn-primary"
+                    hx-post="/agents/{{$.Agent.ID}}/discord-auth/{{.DiscordUserID}}/approve"
+                    hx-target="#discord-auth-table"
+                    hx-swap="outerHTML">Approve</button>
+            <button class="btn btn-sm btn-secondary"
+                    hx-post="/agents/{{$.Agent.ID}}/discord-auth/{{.DiscordUserID}}/deny"
+                    hx-target="#discord-auth-table"
+                    hx-swap="outerHTML">Deny</button>
+          {{end}}
+          <button class="btn btn-sm btn-danger"
+                  hx-post="/agents/{{$.Agent.ID}}/discord-auth/{{.DiscordUserID}}/delete"
+                  hx-target="#discord-auth-table"
+                  hx-swap="outerHTML"
+                  hx-confirm="Remove this Discord user's authorization?">Delete</button>
+        </td>
+      </tr>
+      {{end}}
+    </tbody>
+  </table>
+  {{else}}
+  <p style="color: var(--text-muted); text-align: center; padding: 24px 0;">No authorizations yet. Discord users will appear here when they message the bot.</p>
+  {{end}}
+</div>
+{{end}}

@@ -1,0 +1,107 @@
+{{define "groups-list"}}
+<div class="page-header">
+  <div>
+    <h2>Groups</h2>
+    {{if and .AuthCaps .AuthCaps.ManagedBy}}
+    <p>Groups are managed by {{.AuthCaps.ManagedBy}}.</p>
+    {{else}}
+    <p>Assign agents and user roles by group.</p>
+    {{end}}
+  </div>
+  <a href="/users" class="btn btn-secondary">Back to Users</a>
+</div>
+{{if .ErrorMessage}}<div class="alert alert-error">{{.ErrorMessage}}</div>{{end}}
+{{if .SuccessMessage}}<div class="alert alert-success">{{.SuccessMessage}}</div>{{end}}
+
+{{if or (not .AuthCaps) .AuthCaps.CanManageUsers}}
+<div class="card">
+  <div class="card-header"><h3>Create Group</h3></div>
+  <div class="card-body">
+    <form method="POST" action="/groups">
+      <div class="form-group"><label>Name</label><input class="form-input" name="name" required></div>
+      <div class="form-group mt-2"><label>Description</label><input class="form-input" name="description"></div>
+      <button class="btn btn-primary mt-2" type="submit">Create Group</button>
+    </form>
+  </div>
+</div>
+{{end}}
+
+{{range .Groups}}
+<div class="card mt-2">
+  <div class="card-header"><h3>{{.Name}}</h3></div>
+  <div class="card-body">
+    <p style="color:var(--text-secondary);">{{.Description}}</p>
+    {{if or (not $.AuthCaps) $.AuthCaps.CanManageUsers}}
+    <form method="POST" action="/groups/{{.ID}}/edit">
+      <div class="form-group"><label>Name</label><input class="form-input" name="name" value="{{.Name}}" required></div>
+      <div class="form-group mt-2"><label>Description</label><input class="form-input" name="description" value="{{.Description}}"></div>
+      <button class="btn btn-sm mt-2" type="submit">Update Group</button>
+    </form>
+    <form method="POST" action="/groups/{{.ID}}/delete" style="margin-top:8px;">
+      <button class="btn btn-sm btn-danger" type="submit" hx-confirm="Delete group {{.Name}}?">Delete Group</button>
+    </form>
+    {{end}}
+
+    <hr style="margin:16px 0;">
+    <h4>Agents</h4>
+    <div style="display:flex;flex-wrap:wrap;gap:8px;margin:8px 0;">
+      {{range .AgentIDs}}
+      {{if or (not $.AuthCaps) $.AuthCaps.CanManageUsers}}
+      <form method="POST" action="/groups/{{$.ID}}/agents/{{.}}/delete">
+        <button class="btn btn-sm" type="submit">{{.}} ×</button>
+      </form>
+      {{else}}
+      <span class="btn btn-sm" style="cursor:default;">{{.}}</span>
+      {{end}}
+      {{else}}
+      <span style="color:var(--text-muted);">No agents assigned</span>
+      {{end}}
+    </div>
+    {{if or (not $.AuthCaps) $.AuthCaps.CanManageUsers}}
+    <form method="POST" action="/groups/{{.ID}}/agents" style="display:flex;gap:8px;align-items:end;">
+      <div class="form-group" style="min-width:280px;">
+        <label>Add Agent</label>
+        <select class="form-select" name="agent_id">
+          {{range $.Agents}}<option value="{{.ID}}">{{.Name}} ({{.ID}})</option>{{end}}
+        </select>
+      </div>
+      <button class="btn btn-sm" type="submit">Add</button>
+    </form>
+    {{end}}
+
+    <hr style="margin:16px 0;">
+    <h4>User Roles</h4>
+    <div style="display:flex;flex-wrap:wrap;gap:8px;margin:8px 0;">
+      {{range .UserRoles}}
+      {{if or (not $.AuthCaps) $.AuthCaps.CanManageUsers}}
+      <form method="POST" action="/groups/{{$.ID}}/users/{{.UserID}}/delete">
+        <button class="btn btn-sm" type="submit">{{.Username}}: {{.Role}} ×</button>
+      </form>
+      {{else}}
+      <span class="btn btn-sm" style="cursor:default;">{{.Username}}: {{.Role}}</span>
+      {{end}}
+      {{else}}
+      <span style="color:var(--text-muted);">No user roles assigned</span>
+      {{end}}
+    </div>
+    {{if or (not $.AuthCaps) $.AuthCaps.CanManageUsers}}
+    <form method="POST" action="/groups/{{.ID}}/users" style="display:flex;gap:8px;align-items:end;">
+      <div class="form-group" style="min-width:220px;">
+        <label>User</label>
+        <select class="form-select" name="user_id">
+          {{range $.Users}}<option value="{{.ID}}">{{.Username}}</option>{{end}}
+        </select>
+      </div>
+      <div class="form-group" style="min-width:180px;">
+        <label>Role</label>
+        <select class="form-select" name="role">
+          {{range $.Roles}}<option value="{{.}}">{{.}}</option>{{end}}
+        </select>
+      </div>
+      <button class="btn btn-sm" type="submit">Assign</button>
+    </form>
+    {{end}}
+  </div>
+</div>
+{{end}}
+{{end}}

@@ -1,0 +1,713 @@
+{{define "agent-detail"}}
+{{if .EmergencyStop}}
+<div class="alert alert-error" style="display: flex; justify-content: space-between; align-items: center;">
+  <span><strong>Emergency Stop Active.</strong> All agent starts are blocked.</span>
+  <button class="btn btn-sm btn-danger" hx-post="/emergency-stop/clear" hx-target="body">Clear Emergency Stop</button>
+</div>
+{{end}}
+<div class="page-header">
+  <div>
+    <h2>{{.Agent.Name}}</h2>
+    {{if .Agent.Description}}<p>{{.Agent.Description}}</p>{{end}}
+  </div>
+  <div style="display: flex; gap: 8px; align-items: center;">
+    {{if can .User "teams.manage"}}
+    <a href="/paired/new?agent_a={{.Agent.ID}}" class="btn btn-secondary btn-sm">Start Paired Conversation</a>
+    {{end}}
+    {{if and (can .User "agent.start") (eq .Status "quarantined")}}
+      <button class="btn btn-success btn-sm" hx-post="/agents/{{.Agent.ID}}/start" hx-target="body">Un-quarantine</button>
+    {{else if and (can .User "agent.start") (eq .Status "stopped")}}
+      <button class="btn btn-success btn-sm" hx-post="/agents/{{.Agent.ID}}/start" hx-target="body">Start</button>
+    {{else if and (can .User "agent.start") (eq .Status "killed")}}
+      <button class="btn btn-success btn-sm" hx-post="/agents/{{.Agent.ID}}/start" hx-target="body">Start</button>
+    {{else if and (can .User "agent.chat") (eq .Status "running")}}
+      <a href="/agents/{{.Agent.ID}}/chat" class="btn btn-primary btn-sm">Chat</a>
+    {{else if and (can .User "agent.start") (eq .Status "error")}}
+      <button class="btn btn-success btn-sm" hx-post="/agents/{{.Agent.ID}}/start" hx-target="body">Restart</button>
+    {{end}}
+    <div class="action-dropdown-wrap">
+      <button class="action-kebab" onclick="this.nextElementSibling.classList.toggle('open')" aria-label="More actions">&middot;&middot;&middot;</button>
+      <div class="action-dropdown">
+        {{if and (can .User "agent.stop") (eq .Status "running")}}
+          <button class="btn-dropdown" hx-post="/agents/{{.Agent.ID}}/stop" hx-target="body">Stop</button>
+        {{end}}
+        {{if and (can .User "agent.kill") (eq .Status "running")}}
+          <button class="btn-dropdown danger" hx-post="/agents/{{.Agent.ID}}/kill" hx-confirm="Kill agent '{{.Agent.Name}}'? This will immediately terminate all operations." hx-target="body">Kill</button>
+        {{end}}
+        {{if and (can .User "agent.quarantine") (or (eq .Status "running") (eq .Status "stopped") (eq .Status "error"))}}
+          <button class="btn-dropdown" hx-post="/agents/{{.Agent.ID}}/quarantine" hx-target="body">Quarantine</button>
+        {{end}}
+        {{if can .User "agent.create"}}<a href="/agents/{{.Agent.ID}}/clone" class="btn-dropdown">Clone</a>{{end}}
+        {{if can .User "templates.manage"}}<button class="btn-dropdown" onclick="document.getElementById('save-template-modal').showModal()">Save as Template</button>{{end}}
+        {{if can .User "agent.delete"}}<button class="btn-dropdown danger" hx-post="/agents/{{.Agent.ID}}/delete" hx-confirm="Delete agent '{{.Agent.Name}}'? This cannot be undone." hx-target="body">Delete</button>{{end}}
+      </div>
+    </div>
+  </div>
+</div>
+
+{{if eq .Status "killed"}}
+<div class="alert alert-error">
+  <strong>This agent was killed.</strong> Review the audit log before restarting.
+</div>
+{{end}}
+
+<!-- Stats Row -->
+<div class="stat-grid">
+  <div class="stat-card">
+    <div class="stat-label">Status</div>
+    <div class="stat-value">
+      <span hx-get="/agents/{{.Agent.ID}}/status" hx-trigger="every 5s" hx-swap="outerHTML" class="badge badge-{{.Status}}">{{.Status}}</span>
+    </div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">Desired State</div>
+    <div class="stat-value" style="font-size: 18px;">{{.Agent.DesiredState}}</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">Memories</div>
+    <div class="stat-value"><a href="/agents/{{.Agent.ID}}/memories" style="color: inherit;">{{.MemoryCount}}</a></div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">History</div>
+    <div class="stat-value"><a href="/agents/{{.Agent.ID}}/history" style="color: inherit;">{{.HistoryCount}}</a></div>
+  </div>
+  {{with .Budget}}
+  <div class="stat-card">
+    <div class="stat-label">Tokens Today</div>
+    <div class="stat-value">{{.TokensToday}}</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">Tokens This Month</div>
+    <div class="stat-value">{{.TokensThisMonth}}</div>
+  </div>
+  {{end}}
+  {{if .WorkspaceSize}}
+  <div class="stat-card">
+    <div class="stat-label">Workspace</div>
+    <div class="stat-value">{{.WorkspaceSize}}</div>
+  </div>
+  {{end}}
+</div>
+
+<!-- Configuration Cards -->
+{{if .Team}}
+<div class="card mt-2">
+  <div class="card-header">
+    <h3>Team</h3>
+  </div>
+  <div class="card-body">
+    <p>
+      Member of <a href="/teams/{{.Team.ID}}">{{.Team.Name}}</a>
+      {{if .IsTeamLeader}}(Leader){{else}}(Member){{end}}
+    </p>
+    <p style="color: var(--text-secondary);">Communication: {{.Team.Communication}}</p>
+  </div>
+</div>
+{{end}}
+
+{{if .HasQueue}}
+<div class="card mt-2 mb-2">
+  <div class="card-header">
+    <h3>Message Queue</h3>
+  </div>
+  <div class="card-body" id="agent-queue-stats"
+       hx-get="/agents/{{.Agent.ID}}/queue/stats" hx-trigger="load, every 5s" hx-swap="innerHTML">
+    Loading queue data...
+  </div>
+</div>
+{{end}}
+
+<div class="detail-grid">
+  {{template "card-identity" .}}
+
+  {{template "card-model" .}}
+
+  {{template "card-tools" .}}
+
+  {{template "card-channels" .}}
+
+  {{template "card-limits" .}}
+  {{if .HasMultipleSlots}}
+  <div class="card">
+    <div class="card-header">
+      <h3>Slot Usage (Today)</h3>
+    </div>
+    <div class="card-body">
+      {{if .SlotBreakdown}}
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Slot</th>
+              <th>Provider</th>
+              <th>Model</th>
+              <th>Requests</th>
+              <th>Cost</th>
+            </tr>
+          </thead>
+          <tbody>
+            {{range .SlotBreakdown}}
+            <tr>
+              <td>
+                {{.SlotName}}
+                {{if eq .SlotName "system:classifier"}}
+                <span class="badge badge-muted" style="font-size: 0.7em; margin-left: 4px;">system</span>
+                {{end}}
+              </td>
+              <td>{{.Provider}}</td>
+              <td><span class="text-mono">{{.Model}}</span></td>
+              <td>{{.RequestCount}}</td>
+              <td><span class="text-mono">${{printf "%.4f" .TotalCost}}</span></td>
+            </tr>
+            {{end}}
+          </tbody>
+        </table>
+      </div>
+      {{else}}
+      <p style="color: var(--text-muted);">No usage recorded today.</p>
+      {{end}}
+    </div>
+  </div>
+  {{end}}
+  {{if .RoutingStats}}
+  <div class="card">
+    <div class="card-header"><h3>Routing</h3></div>
+    <div class="card-body">
+      <div class="form-group" style="margin-bottom: 12px;">
+        <label>Total Routed</label>
+        <span class="text-mono">{{.RoutingStats.TotalRouted}}</span>
+      </div>
+      {{if .RoutingStats.ByMethod}}
+      <div class="form-group" style="margin-bottom: 12px;">
+        <label>By Method</label>
+        <div>{{range $method, $count := .RoutingStats.ByMethod}}
+          <div style="display: flex; justify-content: space-between; max-width: 300px;">
+            <span>{{$method}}</span><span class="text-mono">{{$count}}</span>
+          </div>
+        {{end}}</div>
+      </div>
+      {{end}}
+      {{if .RoutingStats.BySlot}}
+      <div class="form-group" style="margin-bottom: 12px;">
+        <label>By Slot</label>
+        <div>{{range $slot, $count := .RoutingStats.BySlot}}
+          <div style="display: flex; justify-content: space-between; max-width: 300px;">
+            <span class="text-mono">{{$slot}}</span><span class="text-mono">{{$count}}</span>
+          </div>
+        {{end}}</div>
+      </div>
+      {{end}}
+      {{if gt .RoutingStats.ClassifierCost 0.0}}
+      <div class="form-group" style="margin-bottom: 0;">
+        <label>Classifier Cost</label>
+        <span class="text-mono">${{printf "%.4f" .RoutingStats.ClassifierCost}}</span>
+      </div>
+      {{end}}
+    </div>
+  </div>
+  {{end}}
+</div>
+
+{{template "card-circuit_breaker" .}}
+
+{{template "card-workers" .}}
+
+<!-- Scheduled Tasks -->
+{{if .HasScheduler}}
+<div class="card mt-2">
+  <div class="card-header">
+    <h3>Scheduled Tasks</h3>
+  </div>
+  <div id="schedule-list" hx-get="/agents/{{.Agent.ID}}/schedules" hx-trigger="load" hx-swap="innerHTML">
+    {{if .Schedules}}
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Name</th>
+            <th>Schedule</th>
+            <th>Message</th>
+            <th>Last Run</th>
+            <th>Status</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {{range .Schedules}}
+          <tr>
+            <td>{{.Name}}</td>
+            <td><span class="text-mono">{{cronPreview .CronExpr}}</span></td>
+            <td><span style="color: var(--text-secondary); font-size: 13px;">{{truncate .Message 80}}</span></td>
+            <td>{{if .LastRunAt}}{{localTime .LastRunAt "Jan 02 15:04"}}{{else}}<span style="color: var(--text-muted);">never</span>{{end}}</td>
+            <td>
+              {{if .Enabled}}<span class="badge badge-running">enabled</span>
+              {{else}}<span class="badge badge-stopped">disabled</span>{{end}}
+            </td>
+            <td>
+              <button class="btn btn-sm btn-secondary"
+                      hx-get="/agents/{{$.Agent.ID}}/schedules/{{.ID}}/edit"
+                      hx-target="body" hx-swap="beforeend">Edit</button>
+              <form style="display: inline;" hx-post="/agents/{{$.Agent.ID}}/schedules/{{.ID}}/toggle" hx-target="#schedule-list">
+                <button type="submit" class="btn btn-sm btn-secondary">{{if .Enabled}}Disable{{else}}Enable{{end}}</button>
+              </form>
+              <form style="display: inline;" hx-post="/agents/{{$.Agent.ID}}/schedules/{{.ID}}/delete" hx-target="#schedule-list" hx-confirm="Delete this schedule?">
+                <button type="submit" class="btn btn-sm btn-danger">Delete</button>
+              </form>
+            </td>
+          </tr>
+          {{end}}
+        </tbody>
+      </table>
+    </div>
+    {{else}}
+    <div class="card-body">
+      <p style="color: var(--text-muted);">No scheduled tasks configured.</p>
+    </div>
+    {{end}}
+    <div class="card-body" style="border-top: 1px solid var(--border-color);">
+      <details>
+        <summary style="cursor: pointer; color: var(--primary);">Add Schedule</summary>
+        <form class="mt-1" hx-post="/agents/{{.Agent.ID}}/schedules" hx-target="#schedule-list">
+          <div class="form-group">
+            <label>Name</label>
+            <input type="text" name="schedule_name" class="form-input" placeholder="Morning brief" required>
+          </div>
+          <div class="form-group">
+            <label>Cron Expression</label>
+            <input type="text" name="cron_expr" class="form-input" placeholder="30 7 * * 1-5" required>
+            <small style="color: var(--text-muted);">Standard 5-field cron or @every/@daily shortcuts</small>
+          </div>
+          <div class="form-group">
+            <label>Message</label>
+            <textarea name="message" rows="3" class="form-textarea" placeholder="Generate the morning brief..." required></textarea>
+          </div>
+          <button type="submit" class="btn btn-primary">Add Schedule</button>
+        </form>
+      </details>
+    </div>
+  </div>
+</div>
+{{end}}
+
+{{template "card-heartbeat" .}}
+
+{{template "card-compression" .}}
+
+{{template "card-feedback-hooks" .}}
+
+{{template "card-workflows" .}}
+
+{{template "card-webhooks" .}}
+
+{{template "card-rest_api" .}}
+
+{{template "card-cluster" .}}
+
+{{template "card-obsidian" .}}
+
+<!-- Outbound Webhooks -->
+<div class="card mt-2">
+  <div class="card-header">
+    <h3>Outbound Webhooks</h3>
+  </div>
+  <div class="card-body" style="padding: 16px;">
+    <p style="color: var(--text-secondary); font-size: 13px;">
+      Fire HTTP POST notifications to external endpoints when events occur for this agent.
+    </p>
+    <a href="/outbound-webhooks?agent_id={{.Agent.ID}}" class="btn btn-sm btn-secondary" style="margin-top: 8px;">
+      Manage Outbound Webhooks
+    </a>
+  </div>
+</div>
+
+<!-- Skills -->
+<div class="card mt-2">
+  <div class="card-header">
+    <h3>Skills</h3>
+  </div>
+  <div class="card-body">
+    {{if .GrantedSkills}}
+    <table class="table">
+      <thead>
+        <tr>
+          <th>Skill</th>
+          <th>Description</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {{range .GrantedSkills}}
+        <tr>
+          {{if .Skill}}
+          <td><a href="/skills/{{.Skill.Name}}">{{.Skill.Name}}</a></td>
+          <td>{{.Skill.Description}}</td>
+          {{else}}
+          <td>{{.Grant.SkillName}} <span class="badge badge-stopped">removed</span></td>
+          <td style="color: var(--text-muted);">Skill no longer installed</td>
+          {{end}}
+          <td style="text-align: right;">
+            <form method="POST" action="/skills/{{.Grant.SkillName}}/revoke" style="display: inline;">
+              <input type="hidden" name="agent_id" value="{{.Grant.AgentID}}">
+              <button type="submit" class="btn btn-sm btn-danger"
+                      hx-post="/skills/{{.Grant.SkillName}}/revoke"
+                      hx-vals='{"agent_id": "{{.Grant.AgentID}}"}'
+                      hx-confirm="Revoke this skill?">Revoke</button>
+            </form>
+          </td>
+        </tr>
+        {{end}}
+      </tbody>
+    </table>
+    {{else}}
+    <p style="color: var(--text-muted);">No skills granted. <a href="/skills">Browse catalog</a> to add skills.</p>
+    {{end}}
+    <div style="margin-top: 8px;">
+      <a href="/skills" class="btn btn-sm btn-secondary">Manage Skills</a>
+    </div>
+  </div>
+</div>
+
+<!-- Quick Links -->
+<div class="quick-links mt-2">
+  {{if eq .Status "running"}}
+  <a href="/agents/{{.Agent.ID}}/chat" class="btn btn-primary">Chat</a>
+  {{end}}
+  <a href="/agents/{{.Agent.ID}}/history" class="btn btn-secondary">History ({{.HistoryCount}})</a>
+  <a href="/agents/{{.Agent.ID}}/memories" class="btn btn-secondary">Memories ({{.MemoryCount}})</a>
+</div>
+
+<!-- Export Agent -->
+<div class="card mt-2">
+  <div class="card-header">
+    <h3>Export Agent</h3>
+  </div>
+  <div class="card-body">
+    <p style="color: var(--text-secondary); margin-bottom: 12px;">Export this agent as a compressed archive. The passphrase encrypts vault secrets within the export; other data (config, memories, conversations) is stored in plain text.</p>
+    <form method="POST" action="/agents/{{.Agent.ID}}/export" style="display: flex; gap: 8px; align-items: flex-end; flex-wrap: wrap;">
+      <div class="form-group" style="margin-bottom: 0; flex: 1; min-width: 200px;">
+        <label>Passphrase</label>
+        <input type="password" name="passphrase" class="form-input" placeholder="Enter a passphrase to encrypt secrets" required>
+      </div>
+      <button type="submit" class="btn btn-secondary">Export</button>
+    </form>
+  </div>
+</div>
+
+{{if .WorkspaceSize}}
+<!-- Download Workspace -->
+<div class="card mt-2">
+  <div class="card-header">
+    <h3>Download Workspace</h3>
+  </div>
+  <div class="card-body">
+    <p style="color: var(--text-secondary); margin-bottom: 12px;">Download this agent's workspace directory as a tar.gz archive ({{.WorkspaceSize}}).</p>
+    <a href="/agents/{{.Agent.ID}}/workspace/download" class="btn btn-secondary">Download Workspace</a>
+  </div>
+</div>
+{{end}}
+
+<!-- Recent Activity -->
+<div class="card mt-2">
+  <div class="card-header">
+    <h3>Recent Activity</h3>
+  </div>
+  {{if .AuditEntries}}
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Time</th>
+          <th>Event</th>
+          <th>Action</th>
+          <th>Decision</th>
+        </tr>
+      </thead>
+      <tbody>
+        {{range .AuditEntries}}
+        <tr>
+          <td style="white-space: nowrap; font-size: 12px;">{{localTime .Timestamp "Jan 02 15:04:05"}}</td>
+          <td><span class="badge badge-default">{{.EventType}}</span></td>
+          <td>{{.Action}}</td>
+          <td>
+            {{if .Decision}}
+            <span class="badge {{if eq .Decision "allowed"}}badge-running{{else if eq .Decision "denied"}}badge-error{{else}}badge-stopped{{end}}">{{.Decision}}</span>
+            {{end}}
+          </td>
+        </tr>
+        {{end}}
+      </tbody>
+    </table>
+  </div>
+  {{else}}
+  <div class="card-body">
+    <p style="color: var(--text-muted);">No activity recorded yet.</p>
+  </div>
+  {{end}}
+</div>
+
+<!-- Live Activity Feed -->
+<div class="card mt-2">
+  <div class="card-header">
+    <h3>Live Activity</h3>
+    <span id="agent-live-status" class="badge badge-muted" style="font-size: 11px;">connecting...</span>
+  </div>
+  <div id="live-activity-feed" style="max-height: 300px; overflow-y: auto;">
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Time</th>
+            <th>Event</th>
+            <th>Action</th>
+            <th>Decision</th>
+          </tr>
+        </thead>
+        <tbody id="live-activity-body">
+          {{range .AuditEntries}}
+          <tr>
+            <td style="white-space: nowrap; font-size: 12px;">{{localTime .Timestamp "Jan 02 15:04:05"}}</td>
+            <td><span class="badge badge-default">{{.EventType}}</span></td>
+            <td>{{.Action}}</td>
+            <td>
+              {{if .Decision}}
+              <span class="badge {{if eq .Decision "allowed"}}badge-running{{else if eq .Decision "denied"}}badge-error{{else}}badge-stopped{{end}}">{{.Decision}}</span>
+              {{end}}
+            </td>
+          </tr>
+          {{end}}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+<script nonce="{{.Nonce}}">
+(function() {
+  var agentId = '{{.Agent.ID}}';
+  var es = new EventSource('/audit/stream?agent_id=' + agentId);
+  var statusEl = document.getElementById('agent-live-status');
+  var tbody = document.getElementById('live-activity-body');
+
+  es.onopen = function() {
+    statusEl.className = 'badge badge-running';
+    statusEl.textContent = 'live';
+  };
+  es.onerror = function() {
+    statusEl.className = 'badge badge-error';
+    statusEl.textContent = 'disconnected';
+  };
+  es.addEventListener('audit', function(e) {
+    var entry = JSON.parse(e.data);
+    var row = document.createElement('tr');
+    row.style.animation = 'fadeIn 0.3s ease-in';
+    var ts = new Date(entry.timestamp);
+    var timeStr = ts.toLocaleDateString('en-US', {month:'short',day:'2-digit'}) + ' ' +
+                  ts.toLocaleTimeString('en-US', {hour12:false,hour:'2-digit',minute:'2-digit',second:'2-digit'});
+    var decBadge = '';
+    if (entry.decision) {
+      var cls = entry.decision === 'allowed' ? 'badge-running' : entry.decision === 'denied' ? 'badge-error' : 'badge-stopped';
+      decBadge = '<span class="badge ' + cls + '">' + entry.decision + '</span>';
+    }
+    row.innerHTML =
+      '<td style="white-space:nowrap;font-size:12px;">' + timeStr + '</td>' +
+      '<td><span class="badge badge-default">' + (entry.event_type||'') + '</span></td>' +
+      '<td>' + (entry.action||'') + '</td>' +
+      '<td>' + decBadge + '</td>';
+    tbody.insertBefore(row, tbody.firstChild);
+    while (tbody.children.length > 10) tbody.removeChild(tbody.lastChild);
+  });
+})();
+</script>
+
+<!-- Save as Template Modal -->
+{{if can .User "templates.manage"}}
+<dialog id="save-template-modal" class="memory-dialog">
+  <div class="card" style="min-width: 320px; max-width: 400px;">
+  <form method="POST" action="/agents/{{.Agent.ID}}/save-template">
+    <div class="card-header"><h3>Save as Template</h3></div>
+    <div class="card-body">
+    <div class="form-group">
+      <label for="tmpl-name-modal">Template Name</label>
+      <input type="text" id="tmpl-name-modal" name="template_name" class="form-input" value="{{.Agent.Name}} Template" required>
+    </div>
+    <div class="form-group">
+      <label for="tmpl-desc-modal">Description</label>
+      <input type="text" id="tmpl-desc-modal" name="template_description" class="form-input" placeholder="Optional description">
+    </div>
+    <div class="card-actions" style="justify-content: flex-end;">
+      <button type="button" class="btn btn-secondary" onclick="this.closest('dialog').close()">Cancel</button>
+      <button type="submit" class="btn btn-primary">Save Template</button>
+    </div>
+    </div>
+  </form>
+  </div>
+</dialog>
+{{end}}
+
+{{if .ToolAuditEntries}}
+<!-- Recent Tool Executions -->
+<div class="card mt-2">
+  <div class="card-header">
+    <h3>Recent Tool Executions</h3>
+  </div>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Time</th>
+          <th>Tool</th>
+          <th>Action</th>
+          <th>Result</th>
+        </tr>
+      </thead>
+      <tbody>
+        {{range .ToolAuditEntries}}
+        <tr>
+          <td style="white-space: nowrap; font-size: 12px;">{{localTime .Timestamp "Jan 02 15:04:05"}}</td>
+          <td><span class="text-mono">{{.Resource}}</span></td>
+          <td>{{.Action}}</td>
+          <td>
+            {{if .Decision}}
+            <span class="badge {{if eq .Decision "allowed"}}badge-running{{else if eq .Decision "denied"}}badge-error{{else}}badge-stopped{{end}}">{{.Decision}}</span>
+            {{end}}
+          </td>
+        </tr>
+        {{end}}
+      </tbody>
+    </table>
+  </div>
+</div>
+{{end}}
+
+<script nonce="{{.Nonce}}">
+// Open section edit dialogs when HTMX appends them to the body
+document.body.addEventListener('htmx:afterSwap', function(e) {
+  if (e.detail.target === document.body) {
+    var dialog = document.body.querySelector('dialog.edit-section-dialog:not([open])');
+    if (dialog) dialog.showModal();
+  }
+});
+
+// Close dialog on successful form submission (replaces hx-on::after-request)
+document.body.addEventListener('htmx:afterRequest', function(e) {
+  if (e.detail.successful && e.detail.elt && e.detail.elt.closest) {
+    var dialog = e.detail.elt.closest('dialog.edit-section-dialog');
+    if (dialog) dialog.close();
+  }
+});
+
+// Clean up dynamically-loaded edit dialogs when closed
+document.addEventListener('close', function(e) {
+  if (e.target.tagName === 'DIALOG' && e.target.classList.contains('edit-section-dialog')) {
+    e.target.remove();
+  }
+}, true);
+</script>
+{{end}}
+
+{{define "schedule-list"}}
+{{if .Schedules}}
+<div class="table-wrap">
+  <table>
+    <thead>
+      <tr>
+        <th>Name</th>
+        <th>Schedule</th>
+        <th>Message</th>
+        <th>Last Run</th>
+        <th>Status</th>
+        <th>Actions</th>
+      </tr>
+    </thead>
+    <tbody>
+      {{range .Schedules}}
+      <tr>
+        <td>{{.Name}}</td>
+        <td><span class="text-mono">{{cronPreview .CronExpr}}</span></td>
+        <td><span style="color: var(--text-secondary); font-size: 13px;">{{truncate .Message 80}}</span></td>
+        <td>{{if .LastRunAt}}{{localTime .LastRunAt "Jan 02 15:04"}}{{else}}<span style="color: var(--text-muted);">never</span>{{end}}</td>
+        <td>
+          {{if .Enabled}}<span class="badge badge-running">enabled</span>
+          {{else}}<span class="badge badge-stopped">disabled</span>{{end}}
+        </td>
+        <td>
+          <button class="btn btn-sm btn-secondary"
+                  hx-get="/agents/{{$.AgentID}}/schedules/{{.ID}}/edit"
+                  hx-target="body" hx-swap="beforeend">Edit</button>
+          <form style="display: inline;" hx-post="/agents/{{$.AgentID}}/schedules/{{.ID}}/toggle" hx-target="#schedule-list">
+            <button type="submit" class="btn btn-sm btn-secondary">{{if .Enabled}}Disable{{else}}Enable{{end}}</button>
+          </form>
+          <form style="display: inline;" hx-post="/agents/{{$.AgentID}}/schedules/{{.ID}}/delete" hx-target="#schedule-list" hx-confirm="Delete this schedule?">
+            <button type="submit" class="btn btn-sm btn-danger">Delete</button>
+          </form>
+        </td>
+      </tr>
+      {{end}}
+    </tbody>
+  </table>
+</div>
+{{else}}
+<div class="card-body">
+  <p style="color: var(--text-muted);">No scheduled tasks configured.</p>
+</div>
+{{end}}
+<div class="card-body" style="border-top: 1px solid var(--border-color);">
+  <details>
+    <summary style="cursor: pointer; color: var(--primary);">Add Schedule</summary>
+    <form class="mt-1" hx-post="/agents/{{.AgentID}}/schedules" hx-target="#schedule-list">
+      <div class="form-group">
+        <label>Name</label>
+        <input type="text" name="schedule_name" class="form-input" placeholder="Morning brief" required>
+      </div>
+      <div class="form-group">
+        <label>Cron Expression</label>
+        <input type="text" name="cron_expr" class="form-input" placeholder="30 7 * * 1-5" required>
+        <small style="color: var(--text-muted);">Standard 5-field cron or @every/@daily shortcuts</small>
+      </div>
+      <div class="form-group">
+        <label>Message</label>
+        <textarea name="message" rows="3" class="form-textarea" placeholder="Generate the morning brief..." required></textarea>
+      </div>
+      <button type="submit" class="btn btn-primary">Add Schedule</button>
+    </form>
+  </details>
+</div>
+{{end}}
+
+{{define "schedule-edit-modal"}}
+<dialog class="edit-section-dialog">
+  <form hx-post="/agents/{{.AgentID}}/schedules/{{.Schedule.ID}}/update"
+        hx-target="#schedule-list" hx-swap="innerHTML">
+    <div class="dialog-header">
+      <h3>Edit Schedule</h3>
+      <button type="button" class="btn-edit-section" onclick="this.closest('dialog').close()" title="Close">&times;</button>
+    </div>
+    <div class="dialog-body">
+      <div class="form-group">
+        <label for="edit-sched-name">Name</label>
+        <input type="text" id="edit-sched-name" name="schedule_name" class="form-input" value="{{.Schedule.Name}}" required>
+      </div>
+      <div class="form-group">
+        <label for="edit-sched-cron">Cron Expression</label>
+        <input type="text" id="edit-sched-cron" name="cron_expr" class="form-input" value="{{.Schedule.CronExpr}}" required>
+        <small style="color: var(--text-muted);">Standard 5-field cron or @every/@daily shortcuts</small>
+      </div>
+      <div class="form-group">
+        <label for="edit-sched-message">Message</label>
+        <textarea id="edit-sched-message" name="message" rows="6" class="form-textarea" required>{{.Schedule.Message}}</textarea>
+        <small style="color: var(--text-muted);">The prompt sent to the agent when this schedule fires.</small>
+      </div>
+      <div class="form-group">
+        <label style="display: flex; align-items: center; gap: 6px; cursor: pointer;">
+          <input type="checkbox" name="enabled" value="true" {{if .Schedule.Enabled}}checked{{end}}>
+          Enabled
+        </label>
+      </div>
+    </div>
+    <div class="dialog-footer">
+      <button type="button" class="btn btn-secondary" onclick="this.closest('dialog').close()">Cancel</button>
+      <button type="submit" class="btn btn-primary">Save</button>
+    </div>
+  </form>
+</dialog>
+{{end}}
+

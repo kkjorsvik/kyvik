@@ -1,0 +1,120 @@
+{{define "agent-capabilities-tab"}}
+<div>
+  <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+    <h3 style="margin: 0;">Installed Capabilities</h3>
+    <a href="/capabilities?agent_id={{.Agent.ID}}" class="btn btn-primary btn-sm">Add Capabilities &rarr;</a>
+  </div>
+
+  {{/* ── Skills ── */}}
+  <h4 style="margin-bottom: 0.5rem;">Skills</h4>
+  {{if .InstalledSkills}}
+  <table class="table" style="margin-bottom: 1.5rem;">
+    <thead>
+      <tr>
+        <th>Skill</th>
+        <th>Category</th>
+        <th>Actions</th>
+      </tr>
+    </thead>
+    <tbody>
+      {{range .InstalledSkills}}
+      <tr>
+        <td>
+          <a href="/capabilities/{{.Name}}/install?agent_id={{$.Agent.ID}}">{{.DisplayName}}</a>
+          {{if .Description}}<div style="font-size: 0.85rem; color: var(--text-muted);">{{.Description}}</div>{{end}}
+        </td>
+        <td>{{if .Category}}<span class="badge badge-info">{{.Category}}</span>{{else}}&mdash;{{end}}</td>
+        <td>
+          <form method="POST" action="/skills/{{.Name}}/revoke" style="display: inline;"
+                hx-post="/skills/{{.Name}}/revoke"
+                hx-confirm="Remove {{.DisplayName}} from this agent?">
+            <input type="hidden" name="agent_id" value="{{$.Agent.ID}}">
+            <button type="submit" class="btn btn-danger btn-sm">Remove</button>
+          </form>
+        </td>
+      </tr>
+      {{end}}
+    </tbody>
+  </table>
+  {{else}}
+  <div class="empty-state" style="margin-bottom: 1.5rem;">
+    <p>No skills installed. <a href="/capabilities?agent_id={{.Agent.ID}}">Browse the catalog</a> to add skills.</p>
+  </div>
+  {{end}}
+
+  {{/* ── REST API Integrations ── */}}
+  <h4 style="margin-bottom: 0.5rem;">REST API Integrations</h4>
+  {{if .InstalledIntegrations}}
+  <table class="table" style="margin-bottom: 1.5rem;">
+    <thead>
+      <tr>
+        <th>Integration</th>
+        <th>Category</th>
+        <th>Actions</th>
+      </tr>
+    </thead>
+    <tbody>
+      {{range .InstalledIntegrations}}
+      <tr>
+        <td>
+          <a href="/capabilities/{{.Name}}/install?agent_id={{$.Agent.ID}}">{{.DisplayName}}</a>
+          {{if .Description}}<div style="font-size: 0.85rem; color: var(--text-muted);">{{.Description}}</div>{{end}}
+        </td>
+        <td>{{if .Category}}<span class="badge badge-info">{{.Category}}</span>{{else}}&mdash;{{end}}</td>
+        <td>
+          <form method="POST" action="/integrations/{{.Name}}/uninstall" style="display: inline;"
+                hx-post="/integrations/{{.Name}}/uninstall"
+                hx-confirm="Remove {{.DisplayName}} from this agent?">
+            <input type="hidden" name="agent_id" value="{{$.Agent.ID}}">
+            <button type="submit" class="btn btn-danger btn-sm">Remove</button>
+          </form>
+        </td>
+      </tr>
+      {{end}}
+    </tbody>
+  </table>
+  {{else}}
+  <div class="empty-state" style="margin-bottom: 1.5rem;">
+    <p>No REST integrations installed. <a href="/capabilities?agent_id={{.Agent.ID}}">Browse the catalog</a> to add integrations.</p>
+  </div>
+  {{end}}
+
+  {{/* ── Native Tools ── */}}
+  <h4 style="margin-bottom: 0.5rem;">Native Tools</h4>
+  {{if .InstalledNativeTools}}
+  <table class="table" style="margin-bottom: 1.5rem;">
+    <thead>
+      <tr>
+        <th>Tool</th>
+        <th>Category</th>
+        <th>Actions</th>
+      </tr>
+    </thead>
+    <tbody>
+      {{range .InstalledNativeTools}}
+      <tr>
+        <td>
+          <a href="/capabilities/{{.Name}}/install?agent_id={{$.Agent.ID}}">{{.DisplayName}}</a>
+          {{if .Description}}<div style="font-size: 0.85rem; color: var(--text-muted);">{{.Description}}</div>{{end}}
+        </td>
+        <td>{{if .Category}}<span class="badge badge-info">{{.Category}}</span>{{else}}&mdash;{{end}}</td>
+        <td>
+          <form method="POST" action="/integrations/native/{{.Name}}/uninstall" style="display: inline;"
+                hx-post="/integrations/native/{{.Name}}/uninstall"
+                hx-confirm="Remove {{.DisplayName}} from this agent?">
+            <input type="hidden" name="agent_id" value="{{$.Agent.ID}}">
+            <button type="submit" class="btn btn-danger btn-sm">Remove</button>
+          </form>
+        </td>
+      </tr>
+      {{end}}
+    </tbody>
+  </table>
+  {{else}}
+  <div class="empty-state" style="margin-bottom: 1.5rem;">
+    <p>No native tools installed. <a href="/capabilities?agent_id={{.Agent.ID}}">Browse the catalog</a> to add native tools.</p>
+  </div>
+  {{end}}
+
+</div>
+{{end}}

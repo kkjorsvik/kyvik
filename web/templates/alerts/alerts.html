@@ -1,0 +1,56 @@
+{{define "alerts"}}
+<div class="page-header">
+  <div>
+    <h2>Alerts</h2>
+    <p>System alerts and notifications</p>
+  </div>
+  <div style="display: flex; gap: 8px; align-items: center;">
+    <select onchange="window.location.href='/alerts?type='+this.value+'&agent={{.FilterAgent}}'" class="form-select" style="width: auto;">
+      <option value="" {{if eq .FilterType ""}}>All Types{{else}}>All Types{{end}}</option>
+      <option value="circuit_breaker" {{if eq .FilterType "circuit_breaker"}}selected{{end}}>Circuit Breaker</option>
+      <option value="security" {{if eq .FilterType "security"}}selected{{end}}>Security</option>
+      <option value="agent_error" {{if eq .FilterType "agent_error"}}selected{{end}}>Agent Errors</option>
+      <option value="spending" {{if eq .FilterType "spending"}}selected{{end}}>Spending</option>
+    </select>
+  </div>
+</div>
+
+<div id="alerts-container">
+  {{template "alerts-list" .}}
+</div>
+{{end}}
+
+{{define "alerts-list"}}
+{{if .Alerts}}
+<div class="alerts-timeline">
+  {{range .Alerts}}
+  <div class="alert-row alert-severity-{{.Severity}} {{if .Acknowledged}}alert-acked{{end}}">
+    <div class="alert-row-header">
+      <span class="badge badge-{{.Severity}}">{{.Severity}}</span>
+      <span class="badge badge-source">{{.SourceType}}</span>
+      {{if .AgentName}}<a href="/agents/{{.AgentID}}" class="alert-agent">{{.AgentName}}</a>{{end}}
+      <span class="alert-time">{{localTime .Timestamp "Jan 02 15:04"}}</span>
+      {{if not .Acknowledged}}
+      <button class="btn btn-sm"
+              hx-post="/alerts/ack"
+              hx-vals='{"source_type": "{{.SourceType}}", "source_id": "{{.SourceID}}"}'
+              hx-target="body"
+              style="margin-left: auto; font-size: 12px;">Acknowledge</button>
+      {{else}}
+      <span class="alert-acked-label">Acknowledged</span>
+      {{end}}
+    </div>
+    <div class="alert-row-body">
+      <strong>{{.Title}}</strong>
+      {{if .Description}}<p>{{.Description}}</p>{{end}}
+    </div>
+  </div>
+  {{end}}
+</div>
+{{else}}
+<div class="empty-state">
+  <h3>No alerts</h3>
+  <p>No system alerts to display.</p>
+</div>
+{{end}}
+{{end}}

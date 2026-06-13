@@ -1,0 +1,65 @@
+{{define "integrations-native-detail"}}
+<div class="page-header">
+  <div>
+    <h2>{{.Tool.DisplayName}}</h2>
+    <p>{{.Tool.Description}}</p>
+  </div>
+  <div style="display: flex; gap: 0.5rem; align-items: center;">
+    <span class="badge badge-info">{{.Tool.Category}}</span>
+    <span class="badge badge-running">native tool</span>
+    <a href="/integrations" class="btn btn-secondary">Back to Catalog</a>
+  </div>
+</div>
+
+{{if .Installed}}
+<div class="alert alert-success" style="margin-bottom: 1rem;">
+  <strong>{{.Tool.DisplayName}} granted successfully.</strong>
+  The tool is now available to the selected agent.
+</div>
+{{end}}
+
+<!-- Install Form -->
+<div class="card mt-2">
+  <div class="card-header">
+    <h3>Grant to Agent</h3>
+  </div>
+  <div class="card-body">
+    {{if .Tool.Auth.Instructions}}
+    <div class="alert alert-info" style="margin-bottom: 1rem;">
+      <strong>Setup Instructions:</strong>
+      <pre style="white-space: pre-wrap; margin: 0.5rem 0 0 0; font-size: 0.9rem;">{{.Tool.Auth.Instructions}}</pre>
+      {{if .Tool.Auth.SetupURL}}
+      <p style="margin-top: 0.5rem;"><a href="{{.Tool.Auth.SetupURL}}" target="_blank" rel="noopener">Open setup page &rarr;</a></p>
+      {{end}}
+    </div>
+    {{end}}
+
+    <form method="POST" action="/integrations/native/{{.Tool.Name}}/install" hx-post="/integrations/native/{{.Tool.Name}}/install">
+      <div class="form-group">
+        <label for="agent_id">Agent</label>
+        <select name="agent_id" id="agent_id" class="form-select" required>
+          <option value="">Select an agent...</option>
+          {{range .Agents}}
+          <option value="{{.ID}}" {{if eq .ID $.AgentID}}selected{{end}}>{{.Name}} ({{.Template}})</option>
+          {{end}}
+        </select>
+      </div>
+
+      {{if and .Tool.Auth.Type (ne .Tool.Auth.Type "none")}}
+      <div class="form-group">
+        <label for="auth_secret">
+          {{if eq .Tool.Auth.Type "bearer"}}API Token / Bearer Token{{end}}
+          {{if eq .Tool.Auth.Type "api_key"}}API Key{{end}}
+          {{if eq .Tool.Auth.Type "basic"}}Username:Password{{end}}
+          {{if eq .Tool.Auth.Type "custom_header"}}Auth Header Value{{end}}
+        </label>
+        <input type="password" name="auth_secret" id="auth_secret" class="form-input" required
+               placeholder="Enter your {{.Tool.DisplayName}} credentials">
+      </div>
+      {{end}}
+
+      <button type="submit" class="btn btn-primary">Grant to Agent</button>
+    </form>
+  </div>
+</div>
+{{end}}

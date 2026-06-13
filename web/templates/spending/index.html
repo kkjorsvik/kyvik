@@ -1,0 +1,188 @@
+{{define "spending-index"}}
+<div class="page-header">
+  <div>
+    <h2>Spending Dashboard</h2>
+    <p>Token usage and cost tracking across all agents</p>
+  </div>
+  <div style="display: flex; gap: 8px; align-items: center;">
+    <a href="/spending/export?range={{.Range}}" class="btn btn-sm" style="text-decoration: none;">Export CSV</a>
+  </div>
+</div>
+
+<!-- Time Range Selector -->
+<div class="card" style="margin-bottom: 1rem;">
+  <div class="card-body" style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
+    <span style="font-weight: 500; margin-right: 8px;">Period:</span>
+    <a href="/spending?range=today" class="btn btn-sm {{if eq .Range "today"}}btn-primary{{end}}">Today</a>
+    <a href="/spending?range=7d" class="btn btn-sm {{if eq .Range "7d"}}btn-primary{{end}}">7 Days</a>
+    <a href="/spending?range=30d" class="btn btn-sm {{if eq .Range "30d"}}btn-primary{{end}}">30 Days</a>
+    <a href="/spending?range=month" class="btn btn-sm {{if eq .Range "month"}}btn-primary{{end}}">This Month</a>
+  </div>
+</div>
+
+<!-- Summary Stat Cards -->
+<div class="stats-grid" style="margin-bottom: 1.5rem;">
+  <div class="stat-card">
+    <div class="stat-label">Spend Today</div>
+    <div class="stat-value">${{printf "%.4f" .TotalCostDay}}</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">Spend This Month</div>
+    <div class="stat-value">${{printf "%.4f" .TotalCostMonth}}</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">Tokens Today</div>
+    <div class="stat-value">{{.TotalTokensDay}}</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">Active Agents</div>
+    <div class="stat-value">{{.ActiveAgents}}</div>
+  </div>
+</div>
+
+<!-- Charts Section -->
+<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1.5rem;">
+  <div class="card">
+    <div class="card-header"><h3>Daily Spending</h3></div>
+    <div class="card-body">
+      <canvas id="dailyChart" style="width: 100%; max-height: 300px;"></canvas>
+    </div>
+  </div>
+  <div class="card">
+    <div class="card-header"><h3>Cost by Agent</h3></div>
+    <div class="card-body">
+      <canvas id="agentChart" style="width: 100%; max-height: 300px;"></canvas>
+    </div>
+  </div>
+</div>
+
+<!-- Per-Agent Budget Table -->
+<div class="card" style="margin-bottom: 1.5rem;">
+  <div class="card-header"><h3>Agent Budgets</h3></div>
+  <div class="card-body" style="padding: 0;">
+    <table class="table" style="margin: 0;">
+      <thead>
+        <tr>
+          <th>Agent</th>
+          <th>Daily Spend</th>
+          <th>Monthly Spend</th>
+          <th>Tokens Today</th>
+          <th>Status</th>
+          {{if can .User "spending.adjust"}}<th>Actions</th>{{end}}
+        </tr>
+      </thead>
+      <tbody>
+        {{range .Agents}}
+        {{template "spending-agent-row" .}}
+        {{else}}
+        <tr><td colspan="6" style="text-align: center; padding: 2rem; color: var(--text-secondary);">No agents found</td></tr>
+        {{end}}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- Provider Breakdown Table -->
+{{if .Providers}}
+<div class="card" style="margin-bottom: 1.5rem;">
+  <div class="card-header"><h3>Provider Breakdown</h3></div>
+  <div class="card-body" style="padding: 0;">
+    <table class="table" style="margin: 0;">
+      <thead>
+        <tr>
+          <th>Provider</th>
+          <th>Total Tokens</th>
+          <th>Total Cost</th>
+          <th>Requests</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {{range .Providers}}
+        <tr>
+          <td><strong>{{.Provider}}</strong></td>
+          <td>{{.TotalTokens}}</td>
+          <td>${{printf "%.4f" .TotalCost}}</td>
+          <td>{{.RequestCount}}</td>
+          <td>
+            <button class="btn btn-sm"
+              hx-get="/spending/providers/{{.Provider}}?range={{$.Range}}"
+              hx-target="#provider-detail-{{.Provider}}"
+              hx-swap="innerHTML">Details</button>
+          </td>
+        </tr>
+        <tr><td colspan="5" id="provider-detail-{{.Provider}}"></td></tr>
+        {{end}}
+      </tbody>
+    </table>
+  </div>
+</div>
+{{end}}
+
+<!-- Chart.js -->
+<script src="/static/vendor/chart/chart.umd.min.js"></script>
+<script>
+(function() {
+  fetch('/spending/charts?range={{.Range}}')
+    .then(r => r.json())
+    .then(data => {
+      // Daily spending bar chart
+      const dailyCtx = document.getElementById('dailyChart');
+      if (dailyCtx && data.daily && data.daily.length > 0) {
+        new Chart(dailyCtx, {
+          type: 'bar',
+          data: {
+            labels: data.daily.map(d => d.date),
+            datasets: [{
+              label: 'Cost ($)',
+              data: data.daily.map(d => d.total_cost),
+              backgroundColor: 'rgba(99, 102, 241, 0.7)',
+              borderColor: 'rgb(99, 102, 241)',
+              borderWidth: 1
+            }]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: {
+              y: { beginAtZero: true, ticks: { callback: v => '$' + v.toFixed(2) } }
+            },
+            plugins: {
+              tooltip: { callbacks: { label: ctx => '$' + ctx.parsed.y.toFixed(4) } }
+            }
+          }
+        });
+      }
+
+      // Per-agent cost doughnut
+      const agentCtx = document.getElementById('agentChart');
+      if (agentCtx && data.agents && data.agents.length > 0) {
+        const colors = [
+          'rgba(99, 102, 241, 0.8)', 'rgba(236, 72, 153, 0.8)',
+          'rgba(34, 197, 94, 0.8)', 'rgba(251, 146, 60, 0.8)',
+          'rgba(168, 85, 247, 0.8)', 'rgba(14, 165, 233, 0.8)',
+          'rgba(245, 158, 11, 0.8)', 'rgba(239, 68, 68, 0.8)'
+        ];
+        new Chart(agentCtx, {
+          type: 'doughnut',
+          data: {
+            labels: data.agents.map(a => a.name),
+            datasets: [{
+              data: data.agents.map(a => a.cost),
+              backgroundColor: data.agents.map((_, i) => colors[i % colors.length])
+            }]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+              tooltip: { callbacks: { label: ctx => ctx.label + ': $' + ctx.parsed.toFixed(4) } }
+            }
+          }
+        });
+      }
+    })
+    .catch(err => console.error('Chart data fetch failed:', err));
+})();
+</script>
+{{end}}

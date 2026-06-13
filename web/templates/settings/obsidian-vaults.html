@@ -1,0 +1,187 @@
+{{define "settings-tab-obsidian-vaults"}}
+{{if not .ObsidianAvailable}}
+<div class="card" style="border-left: 3px solid var(--warning-color); margin-bottom: 16px;">
+  <div class="card-body">
+    <p style="color: var(--warning-color); margin: 0;">
+      <strong>obsidian-headless not found.</strong>
+      Vault CRUD operations work, but sync daemons will not start until <code>obsidian-headless</code> is installed and available in PATH.
+    </p>
+  </div>
+</div>
+{{end}}
+
+{{if .ObsidianError}}
+<div class="card" style="border-left: 3px solid var(--danger-color); margin-bottom: 16px;">
+  <div class="card-body">
+    <p style="color: var(--danger-color); margin: 0;">Error loading vaults: {{.ObsidianError}}</p>
+  </div>
+</div>
+{{end}}
+
+<div class="card">
+  <div class="card-header">
+    <h3>Obsidian Vaults</h3>
+    <button class="btn btn-sm btn-primary" onclick="document.getElementById('obsidian-vault-add-dialog').showModal()">+ Add Vault</button>
+  </div>
+  <div class="card-body">
+    {{if .ObsidianVaults}}
+    <table class="data-table" style="width: 100%;">
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Path</th>
+          <th>Sync</th>
+          <th>Status</th>
+          <th>Last Synced</th>
+          <th style="width: 120px;">Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {{range .ObsidianVaults}}
+        <tr>
+          <td class="text-mono">{{.Name}}</td>
+          <td class="text-mono" style="font-size: 12px; color: var(--text-secondary);">{{.Path}}</td>
+          <td>
+            {{if .SyncEnabled}}
+            <span class="badge badge-running">Enabled</span>
+            {{else}}
+            <span class="badge badge-stopped">Disabled</span>
+            {{end}}
+          </td>
+          <td>
+            {{if eq .SyncStatus "syncing"}}
+              <span class="badge badge-running">Syncing</span>
+            {{else if eq .SyncStatus "synced"}}
+              <span class="badge badge-running">Synced</span>
+            {{else if eq .SyncStatus "error"}}
+              <span class="badge badge-error">Error</span>
+            {{else if eq .SyncStatus "stopped"}}
+              <span class="badge badge-stopped">Stopped</span>
+            {{else}}
+              <span class="badge badge-stopped">Disabled</span>
+            {{end}}
+          </td>
+          <td style="font-size: 12px; color: var(--text-secondary);">
+            {{if not .LastSyncAt.IsZero}}
+              {{localTime .LastSyncAt "2006-01-02 15:04"}}
+            {{else}}
+              &mdash;
+            {{end}}
+          </td>
+          <td>
+            <div style="display: flex; gap: 4px;">
+              <button class="btn btn-sm btn-secondary"
+                      onclick="document.getElementById('obsidian-vault-edit-{{.ID}}').showModal()"
+                      title="Edit">&#9998;</button>
+              <form hx-post="/settings/obsidian-vaults/{{.ID}}/delete"
+                    hx-target="#settings-content" hx-swap="innerHTML"
+                    hx-confirm="Delete vault '{{.Name}}'? This will stop its sync daemon.">
+                <button type="submit" class="btn btn-sm btn-danger" title="Delete">&times;</button>
+              </form>
+            </div>
+          </td>
+        </tr>
+        {{end}}
+      </tbody>
+    </table>
+
+    <!-- Edit dialogs for each vault -->
+    {{range .ObsidianVaults}}
+    <dialog id="obsidian-vault-edit-{{.ID}}" class="edit-section-dialog">
+      <form hx-post="/settings/obsidian-vaults/{{.ID}}/update"
+            hx-target="#settings-content" hx-swap="innerHTML">
+        <div class="dialog-header">
+          <h3>Edit Vault: {{.Name}}</h3>
+          <button type="button" class="btn-edit-section" onclick="this.closest('dialog').close()" title="Close">&times;</button>
+        </div>
+        <div class="dialog-body">
+          <div class="form-group">
+            <label for="edit-vault-name-{{.ID}}">Vault Name</label>
+            <input type="text" id="edit-vault-name-{{.ID}}" name="name" class="form-input" value="{{.Name}}" required>
+          </div>
+          <div class="form-group">
+            <label for="edit-vault-path-{{.ID}}">Vault Path</label>
+            <input type="text" id="edit-vault-path-{{.ID}}" name="path" class="form-input" value="{{.Path}}" required>
+          </div>
+          <div class="form-group">
+            <label style="display: flex; align-items: center; gap: 6px; cursor: pointer;">
+              <input type="checkbox" name="sync_enabled" value="true" {{if .SyncEnabled}}checked{{end}}>
+              Enable Obsidian Sync
+            </label>
+          </div>
+          <div class="form-group">
+            <label for="edit-vault-sync-email-{{.ID}}">Sync Email</label>
+            <input type="email" id="edit-vault-sync-email-{{.ID}}" name="sync_email" class="form-input" value="{{.SyncEmail}}">
+          </div>
+          <div class="form-group">
+            <label for="edit-vault-sync-password-{{.ID}}">Sync Password</label>
+            <input type="password" id="edit-vault-sync-password-{{.ID}}" name="sync_password" class="form-input" placeholder="Leave blank to keep current">
+          </div>
+          <div class="form-group">
+            <label for="edit-vault-sync-id-{{.ID}}">Sync Vault ID</label>
+            <input type="text" id="edit-vault-sync-id-{{.ID}}" name="sync_vault_id" class="form-input" value="{{.SyncVaultID}}">
+          </div>
+        </div>
+        <div class="dialog-footer">
+          <button type="button" class="btn btn-secondary" onclick="this.closest('dialog').close()">Cancel</button>
+          <button type="submit" class="btn btn-primary" onclick="this.closest('dialog').close()">Save</button>
+        </div>
+      </form>
+    </dialog>
+    {{end}}
+
+    {{else}}
+    <p style="color: var(--text-muted);">No Obsidian vaults configured yet. Add one to get started.</p>
+    {{end}}
+  </div>
+</div>
+
+<!-- Add Vault Dialog -->
+<dialog id="obsidian-vault-add-dialog" class="edit-section-dialog">
+  <form hx-post="/settings/obsidian-vaults/create"
+        hx-target="#settings-content" hx-swap="innerHTML">
+    <div class="dialog-header">
+      <h3>Add Obsidian Vault</h3>
+      <button type="button" class="btn-edit-section" onclick="this.closest('dialog').close()" title="Close">&times;</button>
+    </div>
+    <div class="dialog-body">
+      <div class="form-group">
+        <label for="new-vault-name">Vault Name</label>
+        <input type="text" id="new-vault-name" name="name" class="form-input" placeholder="my-vault" required>
+        <p style="font-size: 12px; color: var(--text-muted); margin-top: 4px;">
+          A short identifier for this vault (used in agent configuration).
+        </p>
+      </div>
+      <div class="form-group">
+        <label for="new-vault-path">Vault Path</label>
+        <input type="text" id="new-vault-path" name="path" class="form-input" placeholder="/data/obsidian/my-vault" required>
+        <p style="font-size: 12px; color: var(--text-muted); margin-top: 4px;">
+          Absolute path to the vault directory on the filesystem.
+        </p>
+      </div>
+      <div class="form-group">
+        <label style="display: flex; align-items: center; gap: 6px; cursor: pointer;">
+          <input type="checkbox" name="sync_enabled" value="true">
+          Enable Obsidian Sync
+        </label>
+      </div>
+      <div class="form-group">
+        <label for="new-vault-sync-email">Sync Email</label>
+        <input type="email" id="new-vault-sync-email" name="sync_email" class="form-input" placeholder="user@example.com">
+      </div>
+      <div class="form-group">
+        <label for="new-vault-sync-password">Sync Password</label>
+        <input type="password" id="new-vault-sync-password" name="sync_password" class="form-input">
+      </div>
+      <div class="form-group">
+        <label for="new-vault-sync-id">Sync Vault ID</label>
+        <input type="text" id="new-vault-sync-id" name="sync_vault_id" class="form-input" placeholder="abc123def456">
+      </div>
+    </div>
+    <div class="dialog-footer">
+      <button type="button" class="btn btn-secondary" onclick="this.closest('dialog').close()">Cancel</button>
+      <button type="submit" class="btn btn-primary" onclick="this.closest('dialog').close()">Add Vault</button>
+    </div>
+  </form>
+</dialog>
+{{end}}

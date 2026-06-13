@@ -1,0 +1,161 @@
+{{define "card-circuit_breaker"}}
+<div id="card-circuit_breaker">
+{{if .BreakerStatus}}
+  <div class="card" style="margin-top: 1rem;">
+    <div class="card-header">
+      <h3>Circuit Breaker</h3>
+      {{if .BreakerConfig.Enabled}}
+      <span class="badge badge-running">Enabled</span>
+      {{else}}
+      <span class="badge badge-stopped">Disabled</span>
+      {{end}}
+      {{if .BreakerStatus.Tripped}}
+      <span class="badge badge-error">Tripped</span>
+      {{else}}
+      <span class="badge badge-running">Healthy</span>
+      {{end}}
+      {{if can .User "agent.edit"}}
+      <button class="btn-edit-section"
+              hx-get="/agents/{{.Agent.ID}}/edit/circuit_breaker"
+              hx-target="body" hx-swap="beforeend"
+              title="Edit Circuit Breaker">&#9998;</button>
+      {{end}}
+    </div>
+    <div class="card-body">
+      {{if .BreakerStatus.Tripped}}
+        {{with .BreakerStatus.TripResult}}
+        <div class="alert alert-error" style="margin-bottom: 12px;">
+          <strong>Trigger:</strong> {{.Trigger}}<br>
+          <strong>Reason:</strong> {{.Description}}<br>
+          <strong>Time:</strong> {{localTime .Timestamp "Jan 02 15:04:05"}}
+        </div>
+        {{end}}
+      {{end}}
+      <div style="display: flex; gap: 24px; flex-wrap: wrap;">
+        <div>
+          <span style="color: var(--text-secondary); font-size: 12px;">Errors in Window</span>
+          <div class="text-mono" style="font-size: 18px;">{{.BreakerStatus.ErrorCount}}</div>
+        </div>
+        <div>
+          <span style="color: var(--text-secondary); font-size: 12px;">Tool Calls / min</span>
+          <div class="text-mono" style="font-size: 18px;">{{.BreakerStatus.ToolCallCount}}</div>
+        </div>
+        <div>
+          <span style="color: var(--text-secondary); font-size: 12px;">Destructive Calls</span>
+          <div class="text-mono" style="font-size: 18px;">{{.BreakerStatus.DestructiveCount}}</div>
+        </div>
+        <div>
+          <span style="color: var(--text-secondary); font-size: 12px;">Spending in Window</span>
+          <div class="text-mono" style="font-size: 18px;">${{printf "%.4f" .BreakerStatus.SpendingInWindow}}</div>
+        </div>
+      </div>
+      <hr style="border: 0; border-top: 1px solid var(--border-color); margin: 14px 0;">
+      <div style="display: flex; gap: 24px; flex-wrap: wrap;">
+        <div>
+          <span style="color: var(--text-secondary); font-size: 12px;">Error Threshold</span>
+          <div class="text-mono" style="font-size: 16px;">{{.BreakerConfig.ErrorThreshold}}</div>
+        </div>
+        <div>
+          <span style="color: var(--text-secondary); font-size: 12px;">Error Window (min)</span>
+          <div class="text-mono" style="font-size: 16px;">{{.BreakerConfig.ErrorWindowMinutes}}</div>
+        </div>
+        <div>
+          <span style="color: var(--text-secondary); font-size: 12px;">Spending Velocity (%)</span>
+          <div class="text-mono" style="font-size: 16px;">{{.BreakerConfig.SpendingVelocityPct}}</div>
+        </div>
+        <div>
+          <span style="color: var(--text-secondary); font-size: 12px;">Spending Window (min)</span>
+          <div class="text-mono" style="font-size: 16px;">{{.BreakerConfig.SpendingWindowMinutes}}</div>
+        </div>
+        <div>
+          <span style="color: var(--text-secondary); font-size: 12px;">Action Rate (/min)</span>
+          <div class="text-mono" style="font-size: 16px;">{{.BreakerConfig.ActionRatePerMinute}}</div>
+        </div>
+        <div>
+          <span style="color: var(--text-secondary); font-size: 12px;">Destructive Limit</span>
+          <div class="text-mono" style="font-size: 16px;">{{.BreakerConfig.DestructiveLimit}}</div>
+        </div>
+        <div>
+          <span style="color: var(--text-secondary); font-size: 12px;">Loop Identical Count</span>
+          <div class="text-mono" style="font-size: 16px;">{{.BreakerConfig.LoopIdenticalCount}}</div>
+        </div>
+      </div>
+    </div>
+  </div>
+{{else}}
+  <div class="card" style="margin-top: 1rem;">
+    <div class="card-header">
+      <h3>Circuit Breaker</h3>
+      {{if can .User "agent.edit"}}
+      <button class="btn-edit-section"
+              hx-get="/agents/{{.Agent.ID}}/edit/circuit_breaker"
+              hx-target="body" hx-swap="beforeend"
+              title="Edit Circuit Breaker">&#9998;</button>
+      {{end}}
+    </div>
+    <div class="card-body">
+      <p style="color: var(--text-muted);">Circuit breaker not configured.</p>
+    </div>
+  </div>
+{{end}}
+</div>
+{{end}}
+
+{{define "modal-circuit_breaker"}}
+<dialog class="edit-section-dialog">
+  <form hx-post="/agents/{{.Agent.ID}}/edit/circuit_breaker"
+        hx-target="#card-circuit_breaker" hx-swap="outerHTML">
+    <div class="dialog-header">
+      <h3>Edit Circuit Breaker</h3>
+      <button type="button" class="btn-edit-section" onclick="this.closest('dialog').close()" title="Close">&times;</button>
+    </div>
+    <div class="dialog-body">
+      <div class="form-group">
+        <label style="display: flex; align-items: center; gap: 6px; cursor: pointer;">
+          <input type="checkbox" name="circuit_breaker_enabled" value="true" {{if .BreakerConfig.Enabled}}checked{{end}}>
+          Enabled
+        </label>
+      </div>
+      <div class="form-group">
+        <label for="edit-cb-error-threshold">Error Threshold</label>
+        <input type="number" id="edit-cb-error-threshold" name="circuit_breaker_error_threshold" class="form-input" value="{{.BreakerConfig.ErrorThreshold}}" min="0">
+        <span style="color: var(--text-muted); font-size: 11px;">System default: {{.SystemBreakerDefaults.ErrorThreshold}}</span>
+      </div>
+      <div class="form-group">
+        <label for="edit-cb-error-window">Error Window (minutes)</label>
+        <input type="number" id="edit-cb-error-window" name="circuit_breaker_error_window_minutes" class="form-input" value="{{.BreakerConfig.ErrorWindowMinutes}}" min="0">
+        <span style="color: var(--text-muted); font-size: 11px;">System default: {{.SystemBreakerDefaults.ErrorWindowMinutes}}</span>
+      </div>
+      <div class="form-group">
+        <label for="edit-cb-spending-velocity">Spending Velocity (%)</label>
+        <input type="number" id="edit-cb-spending-velocity" name="circuit_breaker_spending_velocity_pct" class="form-input" value="{{.BreakerConfig.SpendingVelocityPct}}" min="0">
+        <span style="color: var(--text-muted); font-size: 11px;">System default: {{.SystemBreakerDefaults.SpendingVelocityPct}}</span>
+      </div>
+      <div class="form-group">
+        <label for="edit-cb-spending-window">Spending Window (minutes)</label>
+        <input type="number" id="edit-cb-spending-window" name="circuit_breaker_spending_window_minutes" class="form-input" value="{{.BreakerConfig.SpendingWindowMinutes}}" min="0">
+        <span style="color: var(--text-muted); font-size: 11px;">System default: {{.SystemBreakerDefaults.SpendingWindowMinutes}}</span>
+      </div>
+      <div class="form-group">
+        <label for="edit-cb-action-rate">Action Rate (per minute)</label>
+        <input type="number" id="edit-cb-action-rate" name="circuit_breaker_action_rate_per_minute" class="form-input" value="{{.BreakerConfig.ActionRatePerMinute}}" min="0">
+        <span style="color: var(--text-muted); font-size: 11px;">System default: {{.SystemBreakerDefaults.ActionRatePerMinute}}</span>
+      </div>
+      <div class="form-group">
+        <label for="edit-cb-destructive-limit">Destructive Limit</label>
+        <input type="number" id="edit-cb-destructive-limit" name="circuit_breaker_destructive_limit" class="form-input" value="{{.BreakerConfig.DestructiveLimit}}" min="0">
+        <span style="color: var(--text-muted); font-size: 11px;">System default: {{.SystemBreakerDefaults.DestructiveLimit}}</span>
+      </div>
+      <div class="form-group">
+        <label for="edit-cb-loop-identical">Loop Identical Count</label>
+        <input type="number" id="edit-cb-loop-identical" name="circuit_breaker_loop_identical_count" class="form-input" value="{{.BreakerConfig.LoopIdenticalCount}}" min="0">
+        <span style="color: var(--text-muted); font-size: 11px;">System default: {{.SystemBreakerDefaults.LoopIdenticalCount}}</span>
+      </div>
+    </div>
+    <div class="dialog-footer">
+      <button type="button" class="btn btn-secondary" onclick="this.closest('dialog').close()">Cancel</button>
+      <button type="submit" class="btn btn-primary">Save</button>
+    </div>
+  </form>
+</dialog>
+{{end}}

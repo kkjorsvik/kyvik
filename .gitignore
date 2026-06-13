@@ -1,0 +1,16 @@
+.env
+.env.local
+.env.*.local
+
+# Secrets / key material
+*.pem
+*.key
+*.p12
+
+/data/*
+/build/*
+/kyvik
+/kyvik-sandbox
+.worktrees/
+.claude/worktrees/
+.superpowers/

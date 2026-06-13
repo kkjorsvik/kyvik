@@ -1,0 +1,73 @@
+name: operator
+description: "Automate and manage. Full read-write plus delete and execute — all within the sandbox."
+
+capabilities:
+  - tool: filesystem
+    action: read
+    resource: "*"
+  - tool: filesystem
+    action: write
+    resource: "*"
+  - tool: filesystem
+    action: delete
+    resource: "*"
+  - tool: http
+    action: get
+    resource: "*"
+  - tool: http
+    action: post
+    resource: "*"
+  - tool: http
+    action: delete
+    resource: "*"
+  - tool: database
+    action: select
+    resource: "*"
+  - tool: database
+    action: insert
+    resource: "*"
+  - tool: database
+    action: update
+    resource: "*"
+  - tool: database
+    action: delete
+    resource: "*"
+  - tool: shell
+    action: execute
+    resource: "*"
+  - tool: code_exec
+    action: execute
+    resource: "*"
+  - tool: github
+    action: read
+    resource: "api.github.com"
+  - tool: github
+    action: issues
+    resource: "api.github.com"
+  - tool: github
+    action: pull_requests
+    resource: "api.github.com"
+  - tool: git
+    action: read
+    resource: "*"
+  - tool: git
+    action: write
+    resource: "*"
+  - tool: git
+    action: push
+    resource: "*"
+  - tool: docker
+    action: read
+    resource: "*"
+  - tool: docker
+    action: manage
+    resource: "*"
+  - tool: obsidian
+    action: read
+    resource: "*"
+  - tool: obsidian
+    action: write
+    resource: "*"
+  - tool: obsidian
+    action: delete
+    resource: "*"

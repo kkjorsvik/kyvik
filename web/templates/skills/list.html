@@ -1,0 +1,59 @@
+{{define "skills-list"}}
+<div class="page-header">
+  <div>
+    <h2>Skills</h2>
+    <p>Browse and manage agent skill catalog</p>
+  </div>
+  <div style="display: flex; gap: 0.5rem;">
+    <form method="POST" action="/skills/refresh" style="display: inline;">
+      <button type="submit" class="btn btn-secondary" hx-post="/skills/refresh">Rescan Disk</button>
+    </form>
+    <a href="/skills/new" class="btn btn-primary">Create Custom</a>
+  </div>
+</div>
+
+{{if .TierGroups}}
+{{range .TierGroups}}
+<div class="card mt-2">
+  <div class="card-header">
+    <h3>{{.TierLabel}} <span class="badge {{.BadgeClass}}">{{len .Skills}}</span></h3>
+  </div>
+  <div class="card-body" style="padding: 0;">
+    <table class="table">
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Description</th>
+          <th>Version</th>
+          <th>Author</th>
+          <th>Requirements</th>
+        </tr>
+      </thead>
+      <tbody>
+        {{range .Skills}}
+        <tr>
+          <td><a href="/skills/{{.Name}}">{{.Name}}</a></td>
+          <td>{{.Description}}</td>
+          <td>{{.Version}}</td>
+          <td>{{.Author}}</td>
+          <td>
+            {{if .Manifest.RequiredTools}}
+              {{range .Manifest.RequiredTools}}<span class="badge badge-default">{{.}}</span> {{end}}
+            {{else}}
+              <span style="color: var(--text-muted);">prompt-only</span>
+            {{end}}
+          </td>
+        </tr>
+        {{end}}
+      </tbody>
+    </table>
+  </div>
+</div>
+{{end}}
+{{else}}
+<div class="empty-state">
+  <h3>No skills found</h3>
+  <p>No skills are installed. Place skill directories in the skills folder and click Rescan Disk.</p>
+</div>
+{{end}}
+{{end}}

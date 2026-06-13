@@ -1,0 +1,77 @@
+{{define "providers-form"}}
+<div class="page-header">
+  <div>
+    <h2>{{if .IsNew}}Add Provider{{else}}Edit Provider{{end}}</h2>
+    <p>{{if .IsNew}}Configure a new LLM provider connection{{else}}Update provider settings{{end}}</p>
+  </div>
+  <a href="/providers" class="btn btn-secondary">Back to Providers</a>
+</div>
+
+<div class="card" style="max-width: 640px;">
+  <div class="card-body">
+    <form method="POST" action="{{if .IsNew}}/providers{{else}}/providers/{{.Provider.ID}}/edit{{end}}" id="provider-form">
+      <div style="display: flex; flex-direction: column; gap: 16px;">
+
+        <div>
+          <label style="display: block; margin-bottom: 4px; font-size: 13px; color: var(--text-secondary);">Provider Type</label>
+          <select name="provider_type" id="provider-type" class="form-select" required {{if not .IsNew}}disabled{{end}}>
+            <option value="">Select a provider...</option>
+            {{range .ValidTypes}}
+            <option value="{{.}}" {{if and (not $.IsNew) (eq . $.Provider.ProviderType)}}selected{{end}}>{{.}}</option>
+            {{end}}
+          </select>
+          {{if not .IsNew}}<input type="hidden" name="provider_type" value="{{.Provider.ProviderType}}">{{end}}
+        </div>
+
+        <div>
+          <label style="display: block; margin-bottom: 4px; font-size: 13px; color: var(--text-secondary);">Display Name</label>
+          <input type="text" name="display_name" class="form-input" placeholder="My OpenAI Account" value="{{if not .IsNew}}{{.Provider.DisplayName}}{{end}}" required>
+        </div>
+
+        <div>
+          <label style="display: block; margin-bottom: 4px; font-size: 13px; color: var(--text-secondary);">API Key</label>
+          <input type="password" name="api_key" class="form-input" placeholder="{{if .IsNew}}sk-...{{else}}Leave blank to keep existing key{{end}}" {{if .IsNew}}required{{end}}>
+        </div>
+
+        <div>
+          <label style="display: block; margin-bottom: 4px; font-size: 13px; color: var(--text-secondary);">Base URL <span style="color: var(--text-muted);">(optional override)</span></label>
+          <input type="url" name="base_url" class="form-input" placeholder="https://api.example.com" value="{{if not .IsNew}}{{.Provider.BaseURL}}{{end}}">
+        </div>
+
+        <div>
+          <label style="display: block; margin-bottom: 4px; font-size: 13px; color: var(--text-secondary);">Default Model</label>
+          <input type="text" name="default_model" class="form-input" placeholder="gpt-4o-mini" value="{{if not .IsNew}}{{.Provider.DefaultModel}}{{end}}">
+        </div>
+
+        <div>
+          <label style="display: block; margin-bottom: 4px; font-size: 13px; color: var(--text-secondary);">Allowed Models <span style="color: var(--text-muted);">(comma-separated, empty = all)</span></label>
+          <input type="text" name="allowed_models" class="form-input" placeholder="gpt-4o, gpt-4o-mini" value="{{if not .IsNew}}{{joinStrings .Provider.AllowedModels ", "}}{{end}}">
+        </div>
+
+        <div>
+          <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+            <input type="checkbox" name="is_enabled" {{if or .IsNew .Provider.IsEnabled}}checked{{end}}>
+            <span style="font-size: 13px; color: var(--text-secondary);">Enabled</span>
+          </label>
+        </div>
+
+        <!-- Test Connection -->
+        <div id="test-result"></div>
+
+        <div style="display: flex; gap: 8px; justify-content: space-between; margin-top: 8px;">
+          <button type="button" class="btn btn-secondary" id="test-btn"
+                  hx-post="/providers/test"
+                  hx-target="#test-result"
+                  hx-swap="innerHTML"
+                  hx-include="#provider-form">Test Connection</button>
+          <div style="display: flex; gap: 8px;">
+            <a href="/providers" class="btn btn-secondary">Cancel</a>
+            <button type="submit" class="btn btn-primary">{{if .IsNew}}Create Provider{{else}}Save Changes{{end}}</button>
+          </div>
+        </div>
+
+      </div>
+    </form>
+  </div>
+</div>
+{{end}}

@@ -1,0 +1,241 @@
+{{define "card-tools"}}
+<div class="card" id="card-tools">
+  <div class="card-header">
+    <h3>Tools</h3>
+    {{if can .User "agent.edit"}}
+    <button class="btn-edit-section"
+            hx-get="/agents/{{.Agent.ID}}/edit/tools"
+            hx-target="body" hx-swap="beforeend"
+            title="Edit Tools">&#9998;</button>
+    {{end}}
+  </div>
+  <div class="card-body">
+    {{if .AgentTier}}
+    <div class="form-group" style="margin-bottom: 12px;">
+      <label>Permission Tier</label>
+      <span class="badge badge-default">{{.AgentTier}}</span>
+    </div>
+    {{end}}
+    {{if .AgentTools}}
+    <div class="form-group" style="margin-bottom: 12px;">
+      <label>Available Tools ({{len .AgentTools}})</label>
+      {{range .AgentTools}}
+      <div style="margin-bottom: 4px;">
+        <span class="text-mono">{{.Name}}</span>
+        <span style="color: var(--text-secondary); font-size: 12px;"> — {{.Description}} ({{len .Actions}} action{{if ne (len .Actions) 1}}s{{end}})</span>
+      </div>
+      {{end}}
+    </div>
+    {{else}}
+    <div class="form-group" style="margin-bottom: 12px;">
+      <label>Available Tools</label>
+      <span style="color: var(--text-muted);">No tools available</span>
+    </div>
+    {{end}}
+    {{if .Agent.ToolGrants}}
+    <div class="form-group" style="margin-bottom: 12px;">
+      <label>Tool Grant Restrictions</label>
+      <div style="font-size: 13px; color: var(--text-secondary);">
+        {{range .Agent.ToolGrants}}<span class="text-mono" style="display: inline-block; margin-right: 8px;">{{.}}</span>{{end}}
+      </div>
+    </div>
+    {{end}}
+    {{range .AgentTools}}
+      {{if eq .Name "github"}}
+      <div class="form-group" style="margin-bottom: 12px;">
+        <label>Vault Key Required</label>
+        <div style="font-size: 13px; color: var(--text-secondary);">
+          <code>github:token</code> (recommended scope: <code>agent:{{$.Agent.ID}}</code>).
+        </div>
+      </div>
+      {{end}}
+    {{end}}
+    {{if .Agent.CapabilityGrants}}
+    <div class="form-group" style="margin-bottom: 0;">
+      <label>Custom Capabilities</label>
+      {{range .Agent.CapabilityGrants}}
+      <div style="font-size: 13px; color: var(--text-secondary);">
+        <span class="text-mono">{{.Tool}}/{{.Action}}/{{.Resource}}</span>
+      </div>
+      {{end}}
+    </div>
+    {{end}}
+  </div>
+</div>
+{{end}}
+
+{{define "modal-tools"}}
+<dialog class="edit-section-dialog">
+  <form hx-post="/agents/{{.Agent.ID}}/edit/tools"
+        hx-target="#card-tools" hx-swap="outerHTML">
+    <div class="dialog-header">
+      <h3>Edit Tools</h3>
+      <button type="button" class="btn-edit-section" onclick="this.closest('dialog').close()" title="Close">&times;</button>
+    </div>
+    <div class="dialog-body">
+
+      <!-- Permission Template -->
+      {{if .Agent.IsGuide}}
+      <div class="form-group">
+        <label>Permission Template</label>
+        <div style="display: flex; align-items: center; gap: 12px; padding: 8px; border: 1px solid var(--border-color); border-radius: 6px; background: var(--bg-secondary);">
+          <span class="badge badge-default">guide</span>
+          <span style="font-size: 12px; color: var(--text-secondary);">Internal guide agent — read-only access to system status and memory.</span>
+        </div>
+      </div>
+      {{else}}
+      <div class="form-group">
+        <label>Permission Template</label>
+        {{$currentTemplate := .Agent.Template}}
+        <div style="display: flex; flex-direction: column; gap: 8px;">
+          <label class="radio-option" style="display: flex; align-items: flex-start; gap: 8px; padding: 8px; border: 1px solid var(--border-color); border-radius: 6px; cursor: pointer;">
+            <input type="radio" name="template" value="reader" {{if eq $currentTemplate "reader"}}checked{{end}} style="margin-top: 3px;">
+            <div>
+              <div style="font-weight: 500;">reader</div>
+              <div style="font-size: 12px; color: var(--text-secondary);">Observe and analyze — read files, fetch web content, query databases</div>
+            </div>
+          </label>
+          <label class="radio-option" style="display: flex; align-items: flex-start; gap: 8px; padding: 8px; border: 1px solid var(--border-color); border-radius: 6px; cursor: pointer;">
+            <input type="radio" name="template" value="worker" {{if eq $currentTemplate "worker"}}checked{{end}} style="margin-top: 3px;">
+            <div>
+              <div style="font-weight: 500;">worker</div>
+              <div style="font-size: 12px; color: var(--text-secondary);">Create and modify — write files, post to APIs, update records</div>
+            </div>
+          </label>
+          <label class="radio-option" style="display: flex; align-items: flex-start; gap: 8px; padding: 8px; border: 1px solid var(--border-color); border-radius: 6px; cursor: pointer;">
+            <input type="radio" name="template" value="operator" {{if eq $currentTemplate "operator"}}checked{{end}} style="margin-top: 3px;">
+            <div>
+              <div style="font-weight: 500;">operator</div>
+              <div style="font-size: 12px; color: var(--text-secondary);">Automate and manage — run scripts, delete resources, execute code (sandboxed)</div>
+            </div>
+          </label>
+          {{if can .User "agent.create.unrestricted"}}
+          <label class="radio-option" style="display: flex; align-items: flex-start; gap: 8px; padding: 8px; border: 1px solid var(--border-color); border-radius: 6px; cursor: pointer;">
+            <input type="radio" name="template" value="admin" {{if eq $currentTemplate "admin"}}checked{{end}} style="margin-top: 3px;">
+            <div>
+              <div style="font-weight: 500;">admin</div>
+              <div style="font-size: 12px; color: var(--text-secondary);">Full system access — unrestricted capabilities, host filesystem access</div>
+            </div>
+          </label>
+          {{end}}
+        </div>
+      </div>
+      {{end}}
+
+      {{if not .Agent.IsGuide}}
+      <!-- Host Paths (visible for admin only) -->
+      <div id="edit-tools-host-paths" style="{{if eq .Agent.Template "admin"}}display: block;{{else}}display: none;{{end}}">
+        <div class="form-group">
+          <label>Host Paths — Read (one per line)</label>
+          <textarea name="host_paths_read" class="form-textarea" rows="3">{{if .Agent.HostPaths}}{{joinStrings .Agent.HostPaths.Read "\n"}}{{end}}</textarea>
+        </div>
+        <div class="form-group">
+          <label>Host Paths — Write (one per line)</label>
+          <textarea name="host_paths_write" class="form-textarea" rows="3">{{if .Agent.HostPaths}}{{joinStrings .Agent.HostPaths.Write "\n"}}{{end}}</textarea>
+        </div>
+        <div class="form-group">
+          <label>Host Paths — Deny (one per line)</label>
+          <textarea name="host_paths_deny" class="form-textarea" rows="3">{{if .Agent.HostPaths}}{{joinStrings .Agent.HostPaths.Deny "\n"}}{{end}}</textarea>
+        </div>
+      </div>
+      {{end}}
+
+      {{if .AvailableTools}}
+      <div class="form-group">
+        <label>Tool Grants</label>
+        {{range .AvailableTools}}
+        <div style="margin-bottom: 4px;">
+          <label style="display: flex; align-items: center; gap: 8px; font-weight: normal;">
+            <input type="checkbox" name="tool_grants" value="{{.Name}}" {{if index $.ToolGrantSet .Name}}checked{{end}}>
+            <span class="text-mono">{{.Name}}</span>
+            {{if index $.DefaultToolSet .Name}}<span class="badge badge-default" style="font-size: 10px; margin-left: 4px;">default</span>{{end}}
+            <span style="color: var(--text-secondary); font-size: 12px;">{{.Description}}</span>
+          </label>
+        </div>
+        {{end}}
+      </div>
+      {{end}}
+
+      <details>
+        <summary style="cursor: pointer; color: var(--primary);">Custom Capabilities</summary>
+        <div id="cap-list" style="margin-top: 8px;">
+          {{range $i, $cap := .Agent.CapabilityGrants}}
+          <div style="display: flex; gap: 8px; margin-bottom: 8px;">
+            <input type="text" name="cap_tool_{{$i}}" value="{{$cap.Tool}}" class="form-input" placeholder="tool" style="flex:1;">
+            <input type="text" name="cap_action_{{$i}}" value="{{$cap.Action}}" class="form-input" placeholder="action" style="flex:1;">
+            <input type="text" name="cap_resource_{{$i}}" value="{{$cap.Resource}}" class="form-input" placeholder="resource" style="flex:1;">
+          </div>
+          {{end}}
+        </div>
+        <input type="hidden" name="cap_count" value="{{len .Agent.CapabilityGrants}}">
+      </details>
+
+      {{if not .Agent.IsGuide}}
+      <div class="form-group">
+        <label>HTTP Allowed Hosts</label>
+        <textarea name="http_allowed_hosts" rows="3" class="form-textarea" placeholder="One host per line">{{range .Agent.HTTPAllowedHosts}}{{.}}&#10;{{end}}</textarea>
+      </div>
+
+      <div class="form-group">
+        <label>Shell Allowed Commands</label>
+        <textarea name="shell_allowed_commands" rows="3" class="form-textarea" placeholder="One command per line">{{range .Agent.ShellAllowedCommands}}{{.}}&#10;{{end}}</textarea>
+      </div>
+      {{end}}
+
+      <div class="form-group" style="margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--border-color);">
+        <label>Security Defenses</label>
+        <div style="margin-top: 8px;">
+          {{with .SecurityConfig}}
+          <label style="display: flex; align-items: center; gap: 8px; margin-bottom: 6px; font-weight: normal;">
+            <input type="checkbox" name="sec_sanitize" value="true" {{if .SanitizeExternalContent}}checked{{end}}> Sanitize external content
+          </label>
+          <label style="display: flex; align-items: center; gap: 8px; margin-bottom: 6px; font-weight: normal;">
+            <input type="checkbox" name="sec_boundaries" value="true" {{if .ContentBoundaries}}checked{{end}}> Content boundaries
+          </label>
+          <label style="display: flex; align-items: center; gap: 8px; margin-bottom: 6px; font-weight: normal;">
+            <input type="checkbox" name="sec_identity" value="true" {{if .IdentityReinforcement}}checked{{end}}> Identity reinforcement
+          </label>
+          <label style="display: flex; align-items: center; gap: 8px; margin-bottom: 6px; font-weight: normal;">
+            <input type="checkbox" name="sec_canary" value="true" {{if .CanaryTokens}}checked{{end}}> Canary tokens
+          </label>
+          <label style="display: flex; align-items: center; gap: 8px; margin-bottom: 6px; font-weight: normal;">
+            <input type="checkbox" name="sec_output" value="true" {{if .OutputValidation}}checked{{end}}> Output validation
+          </label>
+          <div style="margin-top: 8px;">
+            <label>Anomaly Detection</label>
+            <select name="sec_anomaly_sensitivity" class="form-input" style="max-width: 200px;">
+              <option value="low" {{if eq .AnomalyDetectionSensitivity "low"}}selected{{end}}>Low</option>
+              <option value="medium" {{if eq .AnomalyDetectionSensitivity "medium"}}selected{{end}}>Medium</option>
+              <option value="high" {{if eq .AnomalyDetectionSensitivity "high"}}selected{{end}}>High</option>
+            </select>
+          </div>
+          {{end}}
+        </div>
+      </div>
+
+    </div>
+    <div class="dialog-footer">
+      <button type="button" class="btn btn-secondary" onclick="this.closest('dialog').close()">Cancel</button>
+      <button type="submit" class="btn btn-primary">Save</button>
+    </div>
+  </form>
+  <script>
+  (function() {
+    var dialog = document.currentScript.closest('dialog');
+    var radios = dialog.querySelectorAll('input[name="template"]');
+    var hostPanel = dialog.querySelector('#edit-tools-host-paths');
+    if (radios.length && hostPanel) {
+      function toggleHostPaths() {
+        var checked = dialog.querySelector('input[name="template"]:checked');
+        if (checked && checked.value === 'admin') {
+          hostPanel.style.display = 'block';
+        } else {
+          hostPanel.style.display = 'none';
+        }
+      }
+      radios.forEach(function(r) { r.addEventListener('change', toggleHostPaths); });
+    }
+  })();
+  </script>
+</dialog>
+{{end}}

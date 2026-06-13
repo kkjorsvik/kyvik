@@ -1,0 +1,65 @@
+{{define "setup-wizard"}}
+<div style="max-width: 600px; margin: 2rem auto;">
+  <div style="text-align: center; margin-bottom: 2rem;">
+    <img src="/static/img/new-kyvik-icon.png" alt="Kyvik" style="width: 64px; height: 64px; margin-bottom: 1rem;">
+    <h1 style="margin: 0 0 0.5rem 0;">Welcome to Kyvik</h1>
+    <p style="color: var(--text-muted); margin: 0;">Let's connect your first LLM provider to get started.</p>
+  </div>
+
+  <div class="card">
+    <div class="card-body">
+      <form method="POST" action="/setup/complete" id="setup-form">
+        <div style="display: flex; flex-direction: column; gap: 16px;">
+
+          <div>
+            <label style="display: block; margin-bottom: 4px; font-size: 13px; color: var(--text-secondary);">Provider Type</label>
+            <select name="provider_type" id="setup-provider-type" class="form-select" required>
+              <option value="">Select a provider...</option>
+              {{range .ValidTypes}}
+              <option value="{{.}}">{{.}}</option>
+              {{end}}
+            </select>
+          </div>
+
+          <div>
+            <label style="display: block; margin-bottom: 4px; font-size: 13px; color: var(--text-secondary);">Display Name</label>
+            <input type="text" name="display_name" class="form-input" placeholder="My Provider">
+          </div>
+
+          <div>
+            <label style="display: block; margin-bottom: 4px; font-size: 13px; color: var(--text-secondary);">API Key</label>
+            <input type="password" name="api_key" class="form-input" placeholder="sk-..." required>
+          </div>
+
+          <div>
+            <label style="display: block; margin-bottom: 4px; font-size: 13px; color: var(--text-secondary);">Base URL <span style="color: var(--text-muted);">(optional)</span></label>
+            <input type="url" name="base_url" class="form-input" placeholder="Leave blank for default">
+          </div>
+
+          <div>
+            <label style="display: block; margin-bottom: 4px; font-size: 13px; color: var(--text-secondary);">Default Model</label>
+            <input type="text" name="default_model" class="form-input" placeholder="e.g. gpt-4o-mini, claude-sonnet-4-20250514">
+          </div>
+
+          <!-- Test Connection -->
+          <div id="setup-test-result"></div>
+
+          <div style="display: flex; gap: 8px; justify-content: space-between; margin-top: 8px;">
+            <button type="button" class="btn btn-secondary"
+                    hx-post="/providers/test"
+                    hx-target="#setup-test-result"
+                    hx-swap="innerHTML"
+                    hx-include="#setup-form">Test Connection</button>
+            <button type="submit" class="btn btn-primary">Complete Setup</button>
+          </div>
+
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <p style="text-align: center; color: var(--text-muted); font-size: 13px; margin-top: 1rem;">
+    You can add more providers later from the Providers page.
+  </p>
+</div>
+{{end}}

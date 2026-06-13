@@ -1,0 +1,166 @@
+{{define "skills-detail"}}
+<div class="page-header">
+  <div>
+    <h2>{{.Skill.Name}} <span class="badge {{if eq (printf "%s" .Skill.Trust) "builtin"}}badge-running{{else if eq (printf "%s" .Skill.Trust) "verified"}}badge-info{{else if eq (printf "%s" .Skill.Trust) "community"}}badge-warning{{else}}badge-stopped{{end}}">{{.Skill.Trust}}</span></h2>
+    <p>{{.Skill.Description}}</p>
+  </div>
+  <div style="display: flex; gap: 0.5rem; align-items: center;">
+    {{if eq (printf "%s" .Skill.Trust) "local"}}
+    <form method="POST" action="/skills/{{.Skill.Name}}/delete" onsubmit="return confirm('Delete this custom skill?')">
+      <button type="submit" class="btn btn-danger" hx-post="/skills/{{.Skill.Name}}/delete" hx-confirm="Delete this custom skill?">Delete</button>
+    </form>
+    {{end}}
+    <a href="/skills" class="btn btn-secondary">Back to Skills</a>
+  </div>
+</div>
+
+{{if .TrustWarning}}
+<div class="card mt-2" style="border-left: 4px solid {{if eq (printf "%s" .Skill.Trust) "community"}}var(--warning){{else}}var(--primary){{end}};">
+  <div class="card-body">
+    <strong>Trust Warning:</strong> {{.TrustWarning}}
+  </div>
+</div>
+{{end}}
+
+<!-- Requirements -->
+<div class="card mt-2">
+  <div class="card-header">
+    <h3>Requirements</h3>
+  </div>
+  <div class="card-body">
+    {{if .Skill.Manifest.RequiredTools}}
+    <div style="margin-bottom: 12px;">
+      <strong>Required Tools:</strong>
+      {{range .Skill.Manifest.RequiredTools}}<span class="badge badge-default" style="margin-right: 4px;">{{.}}</span>{{end}}
+    </div>
+    {{end}}
+
+    {{if .Skill.Manifest.RequiredCapabilities}}
+    <table class="table">
+      <thead>
+        <tr>
+          <th>Tool</th>
+          <th>Action</th>
+          <th>Resource</th>
+        </tr>
+      </thead>
+      <tbody>
+        {{range .Skill.Manifest.RequiredCapabilities}}
+        <tr>
+          <td><code>{{.Tool}}</code></td>
+          <td><code>{{.Action}}</code></td>
+          <td><code>{{.Resource}}</code></td>
+        </tr>
+        {{end}}
+      </tbody>
+    </table>
+    {{end}}
+
+    {{if and (not .Skill.Manifest.RequiredTools) (not .Skill.Manifest.RequiredCapabilities)}}
+    <p style="color: var(--text-muted);">This is a prompt-only skill with no tool or capability requirements.</p>
+    {{end}}
+  </div>
+</div>
+
+<!-- Documentation -->
+{{if .Skill.HasDocs}}
+<div class="card mt-2">
+  <div class="card-header">
+    <h3>Documentation</h3>
+  </div>
+  <div class="card-body">
+    <details>
+      <summary style="cursor: pointer; color: var(--text-secondary);">Show documentation</summary>
+      <pre style="margin-top: 8px; white-space: pre-wrap; font-size: 13px;">{{.Skill.DocContent}}</pre>
+    </details>
+  </div>
+</div>
+{{end}}
+
+<!-- Prompt Preview -->
+{{if .Skill.HasPrompts}}
+<div class="card mt-2">
+  <div class="card-header">
+    <h3>Prompt Preview</h3>
+  </div>
+  <div class="card-body">
+    <details>
+      <summary style="cursor: pointer; color: var(--text-secondary);">Show prompt content</summary>
+      <pre style="margin-top: 8px; white-space: pre-wrap; font-size: 13px;">{{.Skill.PromptContent}}</pre>
+    </details>
+  </div>
+</div>
+{{end}}
+
+<!-- Granted Agents -->
+<div class="card mt-2">
+  <div class="card-header">
+    <h3>Granted Agents</h3>
+  </div>
+  <div class="card-body">
+    {{if .GrantedAgents}}
+    <table class="table">
+      <thead>
+        <tr>
+          <th>Agent</th>
+          <th>Granted</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {{range .GrantedAgents}}
+        <tr>
+          <td><a href="/agents/{{.Agent.ID}}">{{.Agent.Name}}</a></td>
+          <td>{{localTime .Grant.GrantedAt "Jan 02, 2006 15:04"}}</td>
+          <td style="text-align: right;">
+            <form method="POST" action="/skills/{{$.Skill.Name}}/revoke" style="display: inline;">
+              <input type="hidden" name="agent_id" value="{{.Agent.ID}}">
+              <button type="submit" class="btn btn-sm btn-danger"
+                      hx-post="/skills/{{$.Skill.Name}}/revoke"
+                      hx-vals='{"agent_id": "{{.Agent.ID}}"}'
+                      hx-confirm="Revoke skill '{{$.Skill.Name}}' from agent '{{.Agent.Name}}'?">Revoke</button>
+            </form>
+          </td>
+        </tr>
+        {{end}}
+      </tbody>
+    </table>
+    {{else}}
+    <p style="color: var(--text-muted);">No agents have this skill granted.</p>
+    {{end}}
+  </div>
+</div>
+
+<!-- Grant to Agent -->
+{{if .AvailableAgents}}
+<div class="card mt-2">
+  <div class="card-header">
+    <h3>Grant to Agent</h3>
+  </div>
+  <div class="card-body">
+    <form method="POST" action="/skills/{{.Skill.Name}}/grant" style="display: flex; gap: 8px; align-items: flex-end; flex-wrap: wrap;">
+      <div class="form-group" style="margin-bottom: 0; flex: 1; min-width: 200px;">
+        <label>Agent</label>
+        <select name="agent_id" class="form-select" required>
+          <option value="">Select agent...</option>
+          {{range .AvailableAgents}}
+          <option value="{{.ID}}">{{.Name}}</option>
+          {{end}}
+        </select>
+      </div>
+      {{if .RequiresApproval}}
+      <div class="form-group" style="margin-bottom: 0;">
+        <label style="display: flex; align-items: center; gap: 6px; cursor: pointer;">
+          <input type="checkbox" id="approve-checkbox" required>
+          I have reviewed this skill and approve granting it
+        </label>
+      </div>
+      {{end}}
+      <button type="submit" class="btn btn-primary"
+              hx-post="/skills/{{.Skill.Name}}/grant"
+              hx-include="closest form">Grant</button>
+    </form>
+  </div>
+</div>
+{{end}}
+{{end}}

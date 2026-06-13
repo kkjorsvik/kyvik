@@ -1,0 +1,243 @@
+# Kyvik Configuration
+# Copy to kyvik.yaml and customize.
+
+# Server settings
+server:
+  listen_addr: ":8080"
+  data_dir: "./data"
+
+# Authentication
+auth:
+  type: "local"  # local (default), oidc, delegated
+  # For local auth, set these or use KYVIK_AUTH_USER / KYVIK_AUTH_PASS env vars
+  # username: "admin"
+  # password: "changeme"
+  #
+  # OIDC (self-hosted enterprise SSO):
+  # oidc:
+  #   issuer_url: "https://accounts.example.com"
+  #   client_id: "kyvik"
+  #   client_secret: ""  # or set KYVIK_OIDC_CLIENT_SECRET env var
+  #   redirect_url: "https://kyvik.example.com/auth/callback"
+  #   default_role: "viewer"
+  #
+  # Delegated auth (Sett-managed instances):
+  # delegated:
+  #   sett_url: "https://sett.example.com"
+  #   instance_id: ""
+  #   shared_secret: ""  # or set KYVIK_DELEGATED_SHARED_SECRET env var
+  #   callback_url: "https://my-instance.example.com/auth/callback"
+
+# Storage
+storage:
+  driver: "postgres"  # postgres only — or set KYVIK_DB_DSN env var
+  # postgres:
+  #   dsn: "postgres://user:pass@localhost:5432/kyvik?sslmode=disable"
+  # wal_mode: true            # Legacy setting; ignored for postgres
+  # separate_audit_db: false  # Legacy setting; ignored for postgres
+  # write_batch_ms: 100       # Audit write batch window in milliseconds (default: 100)
+  # max_connections: 15       # Max DB connection pool size (default: 15)
+  # Secrets vault (AES-256-GCM encrypted):
+  # Set KYVIK_MASTER_KEY env var with a base64-encoded 32-byte key.
+  # Generate with: make generate-key
+
+# Global spending limits (per-agent limits override these)
+spending:
+  max_spend_per_day: 10.00    # USD
+  max_spend_per_month: 100.00 # USD
+  max_tokens_per_day: 0       # 0 = unlimited
+  max_tokens_per_month: 0     # 0 = unlimited
+
+# Model providers
+models:
+  openrouter:
+    # Set via KYVIK_OPENROUTER_API_KEY env var
+    # api_key: "sk-or-..."
+    # Management key for per-agent key provisioning (optional).
+    # Set via KYVIK_OPENROUTER_PROVISIONING_KEY env var
+    # provisioning_key: "sk-or-..."
+    default_model: "deepseek/deepseek-chat"
+  openai:
+    # Set via KYVIK_OPENAI_API_KEY env var or secrets vault (global scope, key: openai:api_key)
+    # api_key: "sk-..."
+    # base_url: "https://api.openai.com"  # Override for Azure OpenAI or proxies
+    default_model: "gpt-4o-mini"
+  anthropic:
+    # Set via KYVIK_ANTHROPIC_API_KEY env var or secrets vault (global scope, key: anthropic:api_key)
+    # api_key: "sk-ant-..."
+    # base_url: "https://api.anthropic.com"  # Override for proxies
+    default_model: "claude-sonnet-4-20250514"
+  ollama:
+    enabled: false  # Set to true if Ollama is running locally
+    # base_url: "http://localhost:11434"  # Override for remote Ollama instances
+    default_model: "llama3"
+    # embedding_model: "nomic-embed-text"  # Default embedding model
+
+  gemini:
+    # api_key: ""  # Or set KYVIK_GEMINI_API_KEY env var
+    # base_url: ""  # Override for custom endpoint
+    # default_model: "gemini-2.5-flash"
+
+# Channel adapters
+channels:
+  slack:
+    enabled: true
+    # Set via KYVIK_SLACK_BOT_TOKEN and KYVIK_SLACK_APP_TOKEN env vars
+    # bot_token: "xoxb-..."
+    # app_token: "xapp-..."
+    auto_provision: true  # Automatically create channels for new agents
+  discord:
+    enabled: false
+    # Set via KYVIK_DISCORD_BOT_TOKEN env var
+    # bot_token: ""
+    # guild_id: ""           # Discord server (guild) ID
+    auto_provision: true     # Automatically create text channels for agents
+  webui:
+    enabled: true  # Built-in chat in the dashboard
+
+# Message queue
+queue:
+  depth: 50                    # Max pending+processing messages per agent
+  full_behavior: "acknowledge" # acknowledge, reject, drop
+  priority_users: []           # User IDs that get priority 1
+  stale_timeout_seconds: 300   # Stale processing messages reset to pending
+  retention_hours: 24          # Completed messages deleted after this
+
+# Operator notifications
+notifications:
+  slack_channel: "#kyvik-alerts"
+  events:
+    circuit_breaker: true
+    agent_error: true
+    spending_threshold: 90  # percentage of budget; 0 = disabled
+    backup_status: true
+    security_alerts: true
+    key_failure: true
+    channel_failure: true
+
+# Circuit breaker (automated agent quarantine)
+# Per-agent overrides can be set via the agent's circuit_breaker JSON field.
+# circuit_breaker:
+#   error_threshold: 5            # Tool failures in window to trip (default: 5)
+#   error_window_minutes: 10      # Sliding window for error counting (default: 10)
+#   spending_velocity_pct: 50     # % of daily budget spent in window to trip (default: 50)
+#   spending_window_minutes: 5    # Sliding window for spending velocity (default: 5)
+#   action_rate_per_minute: 30    # Tool calls per minute to trip (default: 30)
+#   destructive_limit: 5          # Destructive tool calls per session to trip (default: 5)
+#   loop_identical_count: 3       # Identical model responses in a row to trip (default: 3)
+
+# Sandbox execution (tool isolation)
+sandbox:
+  # workspace_root: "./data/workspaces"  # Base path for agent workspaces
+  # runner_path: ""                      # Path to kyvik-sandbox binary (auto-detected)
+  # max_memory_mb: 1024                  # Max virtual memory per sandbox (MB)
+  # max_cpu_percent: 50                  # Max CPU usage per sandbox
+  # timeout_seconds: 60                  # Max execution time per sandbox child process
+  # tool_timeout_seconds: 300            # Max wall-clock time per KTP tool call; covers shell, code, HTTP, team delegate, etc. (default: 300s / 5 min)
+  # max_output_bytes: 1048576            # Max stdout/stderr capture (1MB)
+  # host_access: "sandbox"              # "sandbox" (hardened, default) or "host" (power/unrestricted access)
+  # allow_unrestricted: false            # Enable/disable the unrestricted tier entirely
+  # extra_paths:                         # Additional paths for NFS mounts, shared dirs, etc.
+  #   read_write:                        # Available to all agent tiers (worker+)
+  #     - /mnt/nfs/shared
+  #   read_only:                         # Read-only access for all agent tiers
+  #     - /mnt/nfs/reference
+
+# Network proxy for sandbox outbound access control.
+# When enabled, sandbox processes route HTTP through this proxy
+# which enforces per-tier method restrictions and SSRF protection.
+net_proxy:
+  enabled: true
+  listen_addr: "127.0.0.1:0"  # random port (resolved at startup)
+
+# Logging
+logging:
+  level: "info"  # debug, info, warn, error
+  audit:
+    enabled: true
+    retention_days: 90
+
+# Automated backups
+backup:
+  enabled: true
+  schedule: "0 3 * * *"    # Daily at 3:00 AM (before 4:00 AM prune)
+  retention: 7              # Keep last 7 backups
+  # path: "./data/backups"  # Override backup directory
+
+# Skills system
+skills:
+  enabled: true
+  # skills_dir: data/skills  # Default: {data_dir}/skills
+
+# Data retention & automated pruning
+# Automatically cleans up old data on a cron schedule.
+retention:
+  enabled: true                     # Enable automated pruning (default: true)
+  schedule: "0 4 * * *"            # Cron schedule — daily at 4:00 AM (default)
+  audit_logs_days: 90              # Delete audit log entries older than N days
+  conversation_history_days: 180   # Archive conversations older than N days
+  completed_queue_hours: 24        # Delete completed queue messages older than N hours
+  security_events_days: 90         # Delete security events older than N days
+  archived_memories_days: 365      # Delete archived memories older than N days
+  web_conversations_days: 365      # Delete web conversations older than N days
+  # workspace_grace_days: 7  # Days to keep deleted agent workspaces before cleanup
+
+# Conversation compression — summarizes older messages to preserve context.
+compression:
+  enabled: true
+  # model: "openai/gpt-4o-mini"  # optional: use a different model for compression
+  message_threshold: 20
+  token_threshold_pct: 70
+  keep_recent_messages: 10
+
+# Audit stream (real-time SSE for audit events)
+audit_stream:
+  max_connections: 20       # Max concurrent SSE connections (default: 20)
+  heartbeat_seconds: 30     # SSE heartbeat interval (default: 30)
+
+# Browser tool (headless browser for web research)
+browser:
+  timeout_seconds: 30       # Max time per browser action
+  settle_millis: 2000       # Wait after DOMContentLoaded for JS render
+  max_text_bytes: 1048576   # Max extracted text bytes (1 MB)
+  viewport_width: 1920      # Default viewport width
+  viewport_height: 1080     # Default viewport height
+  max_viewport_width: 3840  # Max viewport width
+  max_viewport_height: 2160 # Max viewport height
+  max_screenshot_width: 3840  # Max screenshot width
+  max_screenshot_height: 2160 # Max screenshot height
+  max_results: 5            # Default search results
+
+# Host filesystem tool (power tier only)
+host_filesystem:
+  max_read_bytes: 10485760   # Max bytes returned for read (10 MB)
+  max_write_bytes: 10485760  # Max bytes accepted for write (10 MB)
+  max_list_depth: 1          # Default recursive depth
+  max_list_entries: 5000     # Hard cap on entries returned
+
+# Built-in guide agent
+# guide:
+#   enabled: true
+#   mode: basic                          # "basic" (docs + logs) or "full" (+ agent configs + system status)
+#   spending_limits:
+#     max_spend_per_day: 1.00
+#     max_spend_per_month: 30.00
+
+# REST API (programmatic access via /api/v1/)
+api:
+  enabled: true
+  # Per-scope rate limits (requests per minute)
+  # viewer_rate_limit: 60
+  # operator_rate_limit: 120
+  # manager_rate_limit: 120
+  # admin_rate_limit: 300
+
+# Cluster configuration (optional)
+# cluster:
+#   enabled: false
+#   node_name: ""
+#   advertise_addr: ""
+#   labels: {}
+#   heartbeat_interval_seconds: 5
+#   heartbeat_timeout_seconds: 15
+#   max_agents: 0

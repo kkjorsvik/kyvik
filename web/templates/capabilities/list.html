@@ -1,0 +1,133 @@
+{{define "capabilities-list"}}
+<div class="page-header">
+  <div>
+    <h2>Capabilities</h2>
+    <p>Browse and install skills, integrations, and native tools for your agents.</p>
+  </div>
+</div>
+
+<div class="card" style="margin-bottom: 1.5rem;">
+  <div class="card-body">
+    <label for="agent-selector" style="font-weight: 500; margin-bottom: 0.5rem; display: block;">Filter by agent status</label>
+    <select id="agent-selector" class="form-select" style="max-width: 400px;"
+            onchange="window.location='/capabilities?agent_id='+this.value">
+      <option value="">Select an agent to see status...</option>
+      {{range .Agents}}
+      <option value="{{.ID}}" {{if eq .ID $.AgentID}}selected{{end}}>{{.Name}} ({{.Template}})</option>
+      {{end}}
+    </select>
+  </div>
+</div>
+
+{{/* ── Skills ── */}}
+<h3 style="margin-bottom: 0.75rem;">Skills</h3>
+<div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 1rem; margin-bottom: 2rem;">
+  {{range .Capabilities}}
+  {{if eq (print .Type) "skill"}}
+  <div class="card" style="cursor: pointer;"
+       onclick="window.location='/capabilities/{{.Name}}/install{{if $.AgentID}}?agent_id={{$.AgentID}}{{end}}'">
+    <div class="card-body">
+      <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 0.5rem;">
+        <h4 style="margin: 0;">{{.DisplayName}}</h4>
+        <span class="badge badge-running">skill</span>
+      </div>
+      <p style="color: var(--text-muted); margin-bottom: 0.75rem; font-size: 0.9rem;">{{.Description}}</p>
+      <div style="display: flex; flex-wrap: wrap; gap: 0.35rem; margin-bottom: 0.5rem;">
+        {{if .Category}}<span class="badge badge-info">{{.Category}}</span>{{end}}
+        {{if .MinTier}}<span class="badge badge-default">min: {{.MinTier}}</span>{{end}}
+      </div>
+      {{if or .RequiredNativeTools .RequiredIntegrations}}
+      <div style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 0.5rem;">
+        Requires:
+        {{range .RequiredNativeTools}}<span class="badge badge-default" style="margin-right: 0.2rem;">{{.DisplayName}}</span>{{end}}
+        {{range .RequiredIntegrations}}<span class="badge badge-default" style="margin-right: 0.2rem;">{{.DisplayName}}</span>{{end}}
+      </div>
+      {{end}}
+      {{if $.StatusMap}}
+      {{$st := index $.StatusMap .Name}}
+      <div style="margin-top: 0.5rem; font-size: 0.85rem;">
+        {{if $st.Installed}}
+        <span style="color: var(--color-success);">&#x2705; Installed</span>
+        {{else if and $st.RequiredTier (not $st.TierOK)}}
+        <span style="color: var(--color-warning);">&#x1F512; Needs tier upgrade ({{$st.RequiredTier}})</span>
+        {{else}}
+        <span style="color: var(--text-muted);">&#x26A0;&#xFE0F; Not installed</span>
+        {{end}}
+      </div>
+      {{end}}
+    </div>
+  </div>
+  {{end}}
+  {{end}}
+</div>
+
+{{/* ── REST API Integrations ── */}}
+<h3 style="margin-bottom: 0.75rem;">REST API Integrations</h3>
+<div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 1rem; margin-bottom: 2rem;">
+  {{range .Capabilities}}
+  {{if eq (print .Type) "integration"}}
+  <div class="card" style="cursor: pointer;"
+       onclick="window.location='/capabilities/{{.Name}}/install{{if $.AgentID}}?agent_id={{$.AgentID}}{{end}}'">
+    <div class="card-body">
+      <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 0.5rem;">
+        <h4 style="margin: 0;">{{.DisplayName}}</h4>
+        <span class="badge badge-info">REST</span>
+      </div>
+      <p style="color: var(--text-muted); margin-bottom: 0.75rem; font-size: 0.9rem;">{{.Description}}</p>
+      <div style="display: flex; flex-wrap: wrap; gap: 0.35rem; margin-bottom: 0.5rem;">
+        {{if .Category}}<span class="badge badge-info">{{.Category}}</span>{{end}}
+        {{if .MinTier}}<span class="badge badge-default">min: {{.MinTier}}</span>{{end}}
+      </div>
+      {{if $.StatusMap}}
+      {{$st := index $.StatusMap .Name}}
+      <div style="margin-top: 0.5rem; font-size: 0.85rem;">
+        {{if $st.Installed}}
+        <span style="color: var(--color-success);">&#x2705; Installed</span>
+        {{else if and $st.RequiredTier (not $st.TierOK)}}
+        <span style="color: var(--color-warning);">&#x1F512; Needs tier upgrade ({{$st.RequiredTier}})</span>
+        {{else}}
+        <span style="color: var(--text-muted);">&#x26A0;&#xFE0F; Not installed</span>
+        {{end}}
+      </div>
+      {{end}}
+    </div>
+  </div>
+  {{end}}
+  {{end}}
+</div>
+
+{{/* ── Native Tools ── */}}
+<h3 style="margin-bottom: 0.75rem;">Native Tools</h3>
+<div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 1rem; margin-bottom: 2rem;">
+  {{range .Capabilities}}
+  {{if eq (print .Type) "native_tool"}}
+  <div class="card" style="cursor: pointer;"
+       onclick="window.location='/capabilities/{{.Name}}/install{{if $.AgentID}}?agent_id={{$.AgentID}}{{end}}'">
+    <div class="card-body">
+      <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 0.5rem;">
+        <h4 style="margin: 0;">{{.DisplayName}}</h4>
+        <span class="badge badge-stopped">native</span>
+      </div>
+      <p style="color: var(--text-muted); margin-bottom: 0.75rem; font-size: 0.9rem;">{{.Description}}</p>
+      <div style="display: flex; flex-wrap: wrap; gap: 0.35rem; margin-bottom: 0.5rem;">
+        {{if .Category}}<span class="badge badge-info">{{.Category}}</span>{{end}}
+        {{if .MinTier}}<span class="badge badge-default">min: {{.MinTier}}</span>{{end}}
+      </div>
+      {{if $.StatusMap}}
+      {{$st := index $.StatusMap .Name}}
+      <div style="margin-top: 0.5rem; font-size: 0.85rem;">
+        {{if $st.Installed}}
+        <span style="color: var(--color-success);">&#x2705; Installed</span>
+        {{else if and $st.RequiredTier (not $st.TierOK)}}
+        <span style="color: var(--color-warning);">&#x1F512; Needs tier upgrade ({{$st.RequiredTier}})</span>
+        {{else}}
+        <span style="color: var(--text-muted);">&#x26A0;&#xFE0F; Not installed</span>
+        {{end}}
+      </div>
+      {{end}}
+    </div>
+  </div>
+  {{end}}
+  {{end}}
+</div>
+{{end}}

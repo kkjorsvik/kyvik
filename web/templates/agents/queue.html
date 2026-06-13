@@ -1,0 +1,175 @@
+{{define "agent-queue-stats"}}
+<div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; text-align: center; font-size: 13px;">
+  <div>
+    <div style="color: var(--text-muted);">Pending</div>
+    <div style="font-weight: 600;">{{.Stats.Pending}}</div>
+  </div>
+  <div>
+    <div style="color: var(--text-muted);">Active</div>
+    <div style="font-weight: 600;">{{.Stats.Processing}}</div>
+  </div>
+  <div>
+    <div style="color: var(--text-muted);">Done</div>
+    <div style="font-weight: 600;">{{.Stats.Completed}}</div>
+  </div>
+  <div>
+    <div style="color: var(--text-muted);">Failed</div>
+    <div style="font-weight: 600; {{if gt .Stats.Failed 0}}color: var(--danger);{{end}}">{{.Stats.Failed}}</div>
+  </div>
+</div>
+<div style="margin-top: 10px; text-align: right;">
+  <a href="/agents/{{.AgentID}}/queue" class="btn btn-sm btn-secondary">View Queue</a>
+</div>
+{{end}}
+
+{{define "agent-queue"}}
+<div class="page-header">
+  <div>
+    <h2>{{.AgentName}} — Message Queue</h2>
+    <p><a href="/agents/{{.AgentID}}">Back to {{.AgentName}}</a></p>
+    {{if .ReplayPreview}}
+    <p style="color: var(--text-muted); margin-top: 6px;">Replay preview shows pending messages that will be delivered when the agent starts.</p>
+    {{end}}
+  </div>
+  <div style="display: flex; gap: 6px; align-items: center;">
+    <a href="/agents/{{.AgentID}}/queue/replay" class="btn btn-sm btn-secondary">Replay Preview</a>
+    <form hx-post="/agents/{{.AgentID}}/queue/clear" hx-confirm="Clear all queue messages for this agent?" style="display: inline;">
+      <input type="hidden" name="status" value="">
+      <button class="btn btn-sm btn-danger" type="submit">Clear All</button>
+    </form>
+  </div>
+</div>
+
+<div class="stat-grid">
+  <div class="stat-card">
+    <div class="stat-label">Pending</div>
+    <div class="stat-value">{{.Stats.Pending}}</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">Processing</div>
+    <div class="stat-value">{{.Stats.Processing}}</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">Completed</div>
+    <div class="stat-value">{{.Stats.Completed}}</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">Failed</div>
+    <div class="stat-value" {{if gt .Stats.Failed 0}}style="color: var(--danger);"{{end}}>{{.Stats.Failed}}</div>
+  </div>
+</div>
+
+<div class="card mt-2">
+  <div class="card-header">
+      <div style="display: flex; justify-content: space-between; align-items: center;">
+      <h3>Messages</h3>
+      <div style="display: flex; gap: 4px; align-items: center;">
+        <a href="/agents/{{.AgentID}}/queue" class="btn btn-sm {{if eq .StatusFilter ""}}btn-primary{{else}}btn-secondary{{end}}">All</a>
+        <a href="/agents/{{.AgentID}}/queue?status=pending" class="btn btn-sm {{if eq .StatusFilter "pending"}}btn-primary{{else}}btn-secondary{{end}}">Pending</a>
+        <a href="/agents/{{.AgentID}}/queue?status=processing" class="btn btn-sm {{if eq .StatusFilter "processing"}}btn-primary{{else}}btn-secondary{{end}}">Processing</a>
+        <a href="/agents/{{.AgentID}}/queue?status=completed" class="btn btn-sm {{if eq .StatusFilter "completed"}}btn-primary{{else}}btn-secondary{{end}}">Completed</a>
+        <a href="/agents/{{.AgentID}}/queue?status=failed" class="btn btn-sm {{if eq .StatusFilter "failed"}}btn-primary{{else}}btn-secondary{{end}}">Failed</a>
+        {{if eq .StatusFilter "completed"}}
+        <form hx-post="/agents/{{$.AgentID}}/queue/clear" hx-confirm="Clear all completed messages?" style="display: inline;">
+          <input type="hidden" name="status" value="completed">
+          <button class="btn btn-sm btn-danger" type="submit">Clear Completed</button>
+        </form>
+        {{end}}
+        {{if eq .StatusFilter "failed"}}
+        <form hx-post="/agents/{{$.AgentID}}/queue/clear" hx-confirm="Clear all failed messages?" style="display: inline;">
+          <input type="hidden" name="status" value="failed">
+          <button class="btn btn-sm btn-danger" type="submit">Clear Failed</button>
+        </form>
+        {{end}}
+      </div>
+    </div>
+  </div>
+  <div class="card-body" style="padding: 0;">
+    {{if .Messages}}
+    <table class="table">
+      <thead>
+        <tr>
+          <th>ID</th>
+          <th>Channel</th>
+          <th>From</th>
+          <th>Content</th>
+          <th>Type</th>
+          <th>Status</th>
+          <th>Created</th>
+          <th>Wait</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {{range .Messages}}
+        <tr>
+          <td>{{.DisplayID}}</td>
+          <td><span class="badge badge-default">{{.Channel}}</span></td>
+          <td>{{if .SenderName}}{{.SenderName}}{{else}}<span style="color: var(--text-muted);">-</span>{{end}}</td>
+          <td style="max-width: 300px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{{.Preview}}</td>
+          <td><span class="badge badge-default">{{.MessageType}}</span></td>
+          <td><span class="badge badge-{{.Status}}">{{.Status}}</span></td>
+          <td style="font-size: 12px;">{{localTime .CreatedAt "Jan 02 15:04:05"}}</td>
+          <td>{{if .WaitTime}}{{.WaitTime}}{{else}}-{{end}}</td>
+          <td style="white-space: nowrap;">
+            {{if .ShowActions}}
+            <button class="btn btn-sm btn-secondary"
+                    hx-get="/agents/{{$.AgentID}}/queue/message/{{.ID}}"
+                    hx-target="body"
+                    hx-swap="beforeend">View</button>
+            {{if eq .Status "failed"}}
+            <button class="btn btn-sm btn-primary"
+                    hx-post="/agents/{{$.AgentID}}/queue/{{.ID}}/retry"
+                    hx-confirm="Retry this message?">Retry</button>
+            {{end}}
+            <button class="btn btn-sm btn-danger"
+                    hx-post="/agents/{{$.AgentID}}/queue/{{.ID}}/delete"
+                    hx-confirm="Delete this message?">Delete</button>
+            {{else}}
+            <span style="color: var(--text-muted);">-</span>
+            {{end}}
+          </td>
+        </tr>
+        {{end}}
+      </tbody>
+    </table>
+    {{else}}
+    <p style="padding: 16px; color: var(--text-muted); margin: 0;">No messages{{if .StatusFilter}} with status "{{.StatusFilter}}"{{end}}.</p>
+    {{end}}
+  </div>
+</div>
+
+{{end}}
+
+{{define "agent-queue-message-detail"}}
+<dialog class="edit-section-dialog" style="max-width: 600px;">
+  <div class="dialog-header">
+    <h3>Message #{{.Message.DisplayID}}</h3>
+    <button type="button" class="btn-edit-section" onclick="this.closest('dialog').close(); this.closest('dialog').remove();" title="Close">&times;</button>
+  </div>
+  <div class="card-body" style="padding: 16px;">
+    <div style="margin-bottom: 8px;"><span class="badge badge-{{.Message.Status}}">{{.Message.Status}}</span></div>
+    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 12px; font-size: 13px;">
+      <div><strong>From:</strong> {{if .Message.SenderName}}{{.Message.SenderName}}{{else}}{{.Message.Sender}}{{end}}</div>
+      <div><strong>Channel:</strong> {{.Message.Channel}}</div>
+      <div><strong>Type:</strong> {{.Message.MessageType}}</div>
+      <div><strong>Attempts:</strong> {{.Message.Attempts}} / {{.Message.MaxAttempts}}</div>
+      <div><strong>Created:</strong> {{localTime .Message.CreatedAt "2006-01-02 15:04:05"}}</div>
+      <div>
+        {{if .Message.CompletedAt}}<strong>Completed:</strong> {{localTime .Message.CompletedAt "2006-01-02 15:04:05"}}{{end}}
+      </div>
+    </div>
+    <div style="background: var(--stripe-color); border-radius: 4px; padding: 12px; white-space: pre-wrap; font-family: monospace; font-size: 13px; max-height: 400px; overflow-y: auto;">{{.Message.Content}}</div>
+  </div>
+</dialog>
+
+<script>
+// Open queue message detail dialog when HTMX appends it to body
+document.body.addEventListener('htmx:afterSwap', function(e) {
+  if (e.detail.target === document.body) {
+    var dialog = document.body.querySelector('dialog.edit-section-dialog:not([open])');
+    if (dialog) dialog.showModal();
+  }
+});
+</script>
+{{end}}

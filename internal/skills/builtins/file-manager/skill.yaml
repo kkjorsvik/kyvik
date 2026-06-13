@@ -1,0 +1,14 @@
+name: file-manager
+version: "1.0.0"
+description: Organized file operations with workspace conventions and safety checks
+author: kyvik
+license: Apache-2.0
+required_tools:
+  - file
+required_capabilities:
+  - tool: filesystem
+    action: read
+    resource: "*"
+  - tool: filesystem
+    action: write
+    resource: "*"

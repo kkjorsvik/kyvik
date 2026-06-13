@@ -1,0 +1,31 @@
+# Reader Permission Template
+# Read-only access plus memory and basic network. Safe for monitoring and research agents.
+
+name: reader
+description: "Read-only access with memory and HTTP GET. Safe for monitoring and research agents."
+
+capabilities:
+  - tool: filesystem
+    action: read
+    resource: "*"
+  - tool: http
+    action: get
+    resource: "*"
+  - tool: database
+    action: select
+    resource: "*"
+  - tool: memory
+    action: read
+    resource: "*"
+  - tool: memory
+    action: write
+    resource: "*"
+  - tool: github
+    action: read
+    resource: "api.github.com"
+  - tool: git
+    action: read
+    resource: "*"
+  - tool: obsidian
+    action: read
+    resource: "*"

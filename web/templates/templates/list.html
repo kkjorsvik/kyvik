@@ -1,0 +1,202 @@
+{{define "templates-list"}}
+<div class="page-header">
+  <div>
+    <h2>Agent Templates</h2>
+    <p>Reusable agent configuration blueprints</p>
+  </div>
+</div>
+
+{{if .Success}}<div class="alert alert-success">{{.Success}}</div>{{end}}
+{{if .Error}}<div class="alert alert-error">{{.Error}}</div>{{end}}
+
+{{if .Templates}}
+<div class="table-wrap">
+  <table>
+    <thead>
+      <tr>
+        <th>Name</th>
+        <th>Description</th>
+        <th>Status</th>
+        <th>Group</th>
+        <th>Locked Fields</th>
+        <th>Created</th>
+        <th>Actions</th>
+      </tr>
+    </thead>
+    <tbody>
+      {{range .Templates}}
+      <tr>
+        <td>
+          <strong>{{.Name}}</strong>
+          {{if .IsBuiltin}}<br><span style="font-size: 11px; color: var(--text-muted);">Built-in</span>{{end}}
+        </td>
+        <td>{{if .Description}}{{.Description}}{{else}}<span style="color: var(--text-muted);">—</span>{{end}}</td>
+        <td style="white-space: nowrap;">
+          {{if eq .SetupTier "ready"}}
+            <span style="display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 12px; font-weight: 600; background: #d4edda; color: #155724;">Ready to go</span>
+          {{else if eq .SetupTier "setup_required"}}
+            <span style="display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 12px; font-weight: 600; background: #fff3cd; color: #856404;">Requires setup</span>
+            {{if .SetupNotes}}<br><small style="color: var(--text-muted);">{{.SetupNotes}}</small>{{end}}
+          {{else}}
+            <span style="color: var(--text-muted);">—</span>
+          {{end}}
+        </td>
+        <td>
+          {{if .GroupID}}
+            {{index $.GroupMap .GroupID}}
+          {{else}}
+            <span style="color: var(--text-muted);">Any</span>
+          {{end}}
+        </td>
+        <td>{{len .LockedFields}}</td>
+        <td style="white-space: nowrap; font-size: 12px;">{{localTime .CreatedAt "Jan 02 15:04"}}</td>
+        <td>
+          <a href="/templates/{{.ID}}/edit" class="btn btn-sm btn-secondary">Edit</a>
+          <form style="display: inline;" method="POST" action="/templates/{{.ID}}/delete"
+                hx-post="/templates/{{.ID}}/delete"
+                hx-confirm="Delete template '{{.Name}}'? This cannot be undone."
+                hx-target="body">
+            <button type="submit" class="btn btn-sm btn-danger">Delete</button>
+          </form>
+        </td>
+      </tr>
+      {{end}}
+    </tbody>
+  </table>
+</div>
+{{else}}
+<div class="card">
+  <div class="card-body">
+    <p style="color: var(--text-muted);">No templates created yet. Save an agent as a template from the agent detail page, or create one below.</p>
+  </div>
+</div>
+{{end}}
+
+<div class="card mt-2">
+  <div class="card-header">
+    <h3>Create Template</h3>
+  </div>
+  <div class="card-body">
+    <form method="POST" action="/templates">
+      <div class="form-group">
+        <label for="tmpl-name">Name *</label>
+        <input type="text" id="tmpl-name" name="name" class="form-input" required placeholder="e.g. Standard Worker">
+      </div>
+      <div class="form-group">
+        <label for="tmpl-desc">Description</label>
+        <input type="text" id="tmpl-desc" name="description" class="form-input" placeholder="What is this template for?">
+      </div>
+      <div class="form-group">
+        <label for="tmpl-group">Group</label>
+        <select id="tmpl-group" name="group_id" class="form-input">
+          <option value="">Any group</option>
+          {{range .Groups}}
+          <option value="{{.ID}}">{{.Name}}</option>
+          {{end}}
+        </select>
+      </div>
+
+      <details>
+        <summary style="cursor: pointer; font-weight: 600; margin-bottom: 8px;">Identity &amp; Behavior</summary>
+        <div style="padding: 8px 0;">
+          <div class="form-group">
+            <label for="tmpl-system-prompt">System Prompt</label>
+            <textarea id="tmpl-system-prompt" name="system_prompt" class="form-textarea" rows="4" placeholder="Instructions for the agent..."></textarea>
+          </div>
+          <div class="form-group">
+            <label for="tmpl-soul">Soul Content</label>
+            <textarea id="tmpl-soul" name="soul_content" class="form-textarea" rows="3" placeholder="Agent personality and values..."></textarea>
+          </div>
+          <div class="form-group">
+            <label for="tmpl-identity">Identity Content</label>
+            <textarea id="tmpl-identity" name="identity_content" class="form-textarea" rows="3" placeholder="Agent identity details..."></textarea>
+          </div>
+        </div>
+      </details>
+
+      <details>
+        <summary style="cursor: pointer; font-weight: 600; margin-bottom: 8px;">Model</summary>
+        <div style="padding: 8px 0;">
+          <div class="form-group">
+            <label for="tmpl-provider">Provider</label>
+            <select id="tmpl-provider" name="provider" class="form-input">
+              <option value="">— not set —</option>
+              {{range .Providers}}
+              <option value="{{.Name}}">{{.Name}}</option>
+              {{end}}
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="tmpl-model">Model</label>
+            <input type="text" id="tmpl-model" name="model" class="form-input" placeholder="e.g. deepseek/deepseek-chat">
+          </div>
+        </div>
+      </details>
+
+      <details>
+        <summary style="cursor: pointer; font-weight: 600; margin-bottom: 8px;">Permissions</summary>
+        <div style="padding: 8px 0;">
+          <div class="form-group">
+            <label for="tmpl-template">Permission Tier</label>
+            <select id="tmpl-template" name="template" class="form-input">
+              <option value="">— not set —</option>
+              <option value="reader">Reader</option>
+              <option value="worker">Worker</option>
+              <option value="operator">Operator</option>
+              <option value="admin">Admin</option>
+            </select>
+          </div>
+        </div>
+      </details>
+
+      <details>
+        <summary style="cursor: pointer; font-weight: 600; margin-bottom: 8px;">Limits</summary>
+        <div style="padding: 8px 0;">
+          <div class="form-group">
+            <label for="tmpl-max-tokens-day">Max Tokens / Day</label>
+            <input type="number" id="tmpl-max-tokens-day" name="max_tokens_per_day" class="form-input" min="0" placeholder="0">
+          </div>
+          <div class="form-group">
+            <label for="tmpl-max-tokens-month">Max Tokens / Month</label>
+            <input type="number" id="tmpl-max-tokens-month" name="max_tokens_per_month" class="form-input" min="0" placeholder="0">
+          </div>
+          <div class="form-group">
+            <label for="tmpl-max-spend-day">Max Spend / Day ($)</label>
+            <input type="number" id="tmpl-max-spend-day" name="max_spend_per_day" class="form-input" min="0" step="0.01" placeholder="0.00">
+          </div>
+          <div class="form-group">
+            <label for="tmpl-max-spend-month">Max Spend / Month ($)</label>
+            <input type="number" id="tmpl-max-spend-month" name="max_spend_per_month" class="form-input" min="0" step="0.01" placeholder="0.00">
+          </div>
+          <div class="form-group">
+            <label for="tmpl-history-limit">History Limit</label>
+            <input type="number" id="tmpl-history-limit" name="history_limit" class="form-input" min="0" placeholder="50">
+          </div>
+          <div class="form-group">
+            <label for="tmpl-memory-limit">Memory Limit</label>
+            <input type="number" id="tmpl-memory-limit" name="memory_limit" class="form-input" min="0" placeholder="10">
+          </div>
+        </div>
+      </details>
+
+      <details>
+        <summary style="cursor: pointer; font-weight: 600; margin-bottom: 8px;">Constraints</summary>
+        <div style="padding: 8px 0;">
+          <div class="form-group">
+            <label for="tmpl-locked">Locked Fields (JSON array)</label>
+            <textarea id="tmpl-locked" name="locked_fields" class="form-textarea" rows="3" placeholder='["system_prompt", "template"]'></textarea>
+            <small style="color: var(--text-muted);">Fields that cannot be changed when creating an agent from this template.</small>
+          </div>
+          <div class="form-group">
+            <label for="tmpl-constrained">Constrained Fields (JSON object)</label>
+            <textarea id="tmpl-constrained" name="constrained_fields" class="form-textarea" rows="4" placeholder='{"max_tokens_per_day": {"min": 0, "max": 100000}}'></textarea>
+            <small style="color: var(--text-muted);">Field constraints with min/max or allowed options.</small>
+          </div>
+        </div>
+      </details>
+
+      <button type="submit" class="btn btn-primary" style="margin-top: 12px;">Create Template</button>
+    </form>
+  </div>
+</div>
+{{end}}

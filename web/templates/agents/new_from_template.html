@@ -1,0 +1,30 @@
+{{define "agents-new-from-template"}}
+<div class="page-header">
+  <div>
+    <h2>New Agent from Template</h2>
+    <p>Select a template to get started</p>
+  </div>
+  <a href="/agents" class="btn btn-secondary">Back to Agents</a>
+</div>
+
+{{if .AvailableTemplates}}
+<div class="card-grid">
+  {{range .AvailableTemplates}}
+  <a href="/create-from-template/{{.ID}}" class="card" style="text-decoration:none;color:inherit;display:block">
+    <div class="card-header">
+      <h3>{{.Name}}</h3>
+    </div>
+    <div class="card-body">
+      {{if .Description}}<p>{{.Description}}</p>{{end}}
+    </div>
+  </a>
+  {{end}}
+</div>
+{{else}}
+<div class="empty-state">
+  <h3>No templates available</h3>
+  <p>Ask an administrator to create agent templates.</p>
+  <a href="/agents" class="btn btn-secondary">Back to Agents</a>
+</div>
+{{end}}
+{{end}}

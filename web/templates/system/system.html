@@ -1,0 +1,157 @@
+{{define "system"}}
+<div class="page-header">
+  <div>
+    <h2>System</h2>
+    <p>Database statistics and data retention</p>
+  </div>
+  <div>
+    <button class="btn btn-primary"
+            hx-post="/settings/system/prune"
+            hx-target="#prune-result"
+            hx-swap="innerHTML"
+            hx-indicator="#prune-spinner"
+            hx-confirm="Run data retention pruning now? This will delete/archive old data.">
+      Prune Now
+    </button>
+    <span id="prune-spinner" class="htmx-indicator" style="margin-left: 8px;">Pruning...</span>
+  </div>
+</div>
+
+{{if .Stats}}
+<div class="card" style="margin-bottom: 24px;">
+  <h3 style="margin-bottom: 16px;">Database</h3>
+  <div class="stat-grid">
+    <div class="stat-card">
+      <span class="stat-label">Size</span>
+      <span class="stat-value">{{.Stats.DatabaseSizeHuman}}</span>
+    </div>
+    <div class="stat-card">
+      <span class="stat-label">Agents</span>
+      <span class="stat-value">{{.Stats.Agents}}</span>
+    </div>
+    <div class="stat-card">
+      <span class="stat-label">Audit Log</span>
+      <span class="stat-value">{{.Stats.AuditLog}}</span>
+    </div>
+    <div class="stat-card">
+      <span class="stat-label">History</span>
+      <span class="stat-value">{{.Stats.ConversationHistory}}</span>
+    </div>
+    <div class="stat-card">
+      <span class="stat-label">Archive</span>
+      <span class="stat-value">{{.Stats.ConversationArchive}}</span>
+    </div>
+    <div class="stat-card">
+      <span class="stat-label">Queue</span>
+      <span class="stat-value">{{.Stats.MessageQueue}}</span>
+    </div>
+    <div class="stat-card">
+      <span class="stat-label">Security Events</span>
+      <span class="stat-value">{{.Stats.SecurityEvents}}</span>
+    </div>
+    <div class="stat-card">
+      <span class="stat-label">Memories</span>
+      <span class="stat-value">{{.Stats.Memories}}</span>
+    </div>
+    <div class="stat-card">
+      <span class="stat-label">Web Conversations</span>
+      <span class="stat-value">{{.Stats.WebConversations}}</span>
+    </div>
+    <div class="stat-card">
+      <span class="stat-label">Usage Records</span>
+      <span class="stat-value">{{.Stats.UsageRecords}}</span>
+    </div>
+    <div class="stat-card">
+      <span class="stat-label">Schedules</span>
+      <span class="stat-value">{{.Stats.Schedules}}</span>
+    </div>
+  </div>
+</div>
+{{end}}
+
+{{if .RetentionEnabled}}
+<div class="card" style="margin-bottom: 24px;">
+  <h3 style="margin-bottom: 16px;">Retention Settings</h3>
+  <table class="table">
+    <thead>
+      <tr><th>Setting</th><th>Value</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>Schedule</td><td><code>{{.RetentionConfig.Schedule}}</code></td></tr>
+      <tr><td>Audit Logs</td><td>{{.RetentionConfig.AuditLogsDays}} days</td></tr>
+      <tr><td>Conversation History</td><td>{{.RetentionConfig.ConversationHistoryDays}} days (archived then deleted)</td></tr>
+      <tr><td>Completed Queue Messages</td><td>{{.RetentionConfig.CompletedQueueHours}} hours</td></tr>
+      <tr><td>Security Events</td><td>{{.RetentionConfig.SecurityEventsDays}} days</td></tr>
+      <tr><td>Archived Memories</td><td>{{.RetentionConfig.ArchivedMemoriesDays}} days</td></tr>
+      <tr><td>Web Conversations</td><td>{{.RetentionConfig.WebConversationsDays}} days</td></tr>
+    </tbody>
+  </table>
+</div>
+{{end}}
+
+<div id="prune-result">
+  {{template "system-result" .}}
+</div>
+{{end}}
+
+{{define "system-result"}}
+{{if .LastResult}}
+<div class="card">
+  <h3 style="margin-bottom: 16px;">Last Prune Result</h3>
+  <div style="display: flex; gap: 16px; margin-bottom: 16px; flex-wrap: wrap;">
+    <span class="badge badge-info">{{localTime .LastResult.Timestamp "Jan 02 15:04"}}</span>
+    <span class="badge">Duration: {{.LastResult.Duration}}</span>
+    {{if .LastResult.Errors}}
+    <span class="badge badge-critical">{{len .LastResult.Errors}} error(s)</span>
+    {{end}}
+  </div>
+  <table class="table">
+    <thead>
+      <tr><th>Table</th><th>Action</th><th>Count</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>Audit Log</td><td>Deleted</td><td>{{.LastResult.AuditLogsDeleted}}</td></tr>
+      <tr><td>Conversation History</td><td>Archived</td><td>{{.LastResult.ConversationsArchived}}</td></tr>
+      <tr><td>Conversation History</td><td>Deleted</td><td>{{.LastResult.ConversationsDeleted}}</td></tr>
+      <tr><td>Message Queue</td><td>Deleted</td><td>{{.LastResult.QueueMessagesDeleted}}</td></tr>
+      <tr><td>Security Events</td><td>Deleted</td><td>{{.LastResult.SecurityEventsDeleted}}</td></tr>
+      <tr><td>Archived Memories</td><td>Deleted</td><td>{{.LastResult.ArchivedMemoriesDeleted}}</td></tr>
+      <tr><td>Web Conversations</td><td>Deleted</td><td>{{.LastResult.WebConversationsDeleted}}</td></tr>
+    </tbody>
+  </table>
+  {{if .LastResult.Errors}}
+  <div style="margin-top: 12px;">
+    <strong>Errors:</strong>
+    <ul style="margin-top: 4px;">
+      {{range .LastResult.Errors}}
+      <li style="color: var(--text-danger);">{{.}}</li>
+      {{end}}
+    </ul>
+  </div>
+  {{end}}
+  {{if .Stats}}
+  <div style="margin-top: 16px;">
+    <strong>Updated Stats:</strong>
+    <div class="stat-grid" style="margin-top: 8px;">
+      <div class="stat-card">
+        <span class="stat-label">Size</span>
+        <span class="stat-value">{{.Stats.DatabaseSizeHuman}}</span>
+      </div>
+      <div class="stat-card">
+        <span class="stat-label">Audit Log</span>
+        <span class="stat-value">{{.Stats.AuditLog}}</span>
+      </div>
+      <div class="stat-card">
+        <span class="stat-label">History</span>
+        <span class="stat-value">{{.Stats.ConversationHistory}}</span>
+      </div>
+      <div class="stat-card">
+        <span class="stat-label">Archive</span>
+        <span class="stat-value">{{.Stats.ConversationArchive}}</span>
+      </div>
+    </div>
+  </div>
+  {{end}}
+</div>
+{{end}}
+{{end}}

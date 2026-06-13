@@ -1,0 +1,71 @@
+name: weather
+display_name: Weather (OpenWeatherMap)
+description: Current weather and forecasts from OpenWeatherMap.
+version: 1.0.0
+category: personal
+icon: weather
+auth:
+  type: api_key
+  secret_ref: openweathermap_key
+  param_name: appid
+  setup_url: https://openweathermap.org/api
+  instructions: |
+    1. Sign up at https://openweathermap.org/
+    2. Go to API keys in your account
+    3. Copy your API key (free tier includes current weather and 5-day forecast)
+
+endpoints:
+  - name: weather_current
+    description: Get current weather for a location
+    method: GET
+    url: https://api.openweathermap.org/data/2.5/weather
+    query_params:
+      q: "{{.location}}"
+      units: "{{or .units \"metric\"}}"
+    parameters:
+      - name: location
+        description: City name or location query
+        required: true
+        example: "Oslo"
+      - name: units
+        description: "Units system (metric, imperial, standard)"
+        required: false
+        default: "metric"
+    response_template: |
+      {{if .data}}Weather in {{.data.name}}, {{.data.sys.country}}:
+      {{range .data.weather}}{{.description}}{{end}}
+      Temperature: {{.data.main.temp}}°{{if eq (index .body "units") "imperial"}}F{{else}}C{{end}} (feels like {{.data.main.feels_like}}°)
+      Humidity: {{.data.main.humidity}}%
+      Wind: {{.data.wind.speed}} m/s{{end}}
+    cache_ttl_seconds: 600
+    rate_limit_rpm: 30
+    timeout_seconds: 10
+
+  - name: weather_forecast
+    description: Get 5-day weather forecast for a location
+    method: GET
+    url: https://api.openweathermap.org/data/2.5/forecast
+    query_params:
+      q: "{{.location}}"
+      units: "{{or .units \"metric\"}}"
+      cnt: "{{or .count 8}}"
+    parameters:
+      - name: location
+        description: City name or location query
+        required: true
+        example: "Oslo"
+      - name: units
+        description: "Units system (metric, imperial, standard)"
+        required: false
+        default: "metric"
+      - name: count
+        description: Number of forecast intervals to return
+        required: false
+        default: "8"
+    response_template: |
+      {{if .data}}5-day forecast for {{.data.city.name}}:
+      {{range .data.list}}- {{.dt_txt}}: {{range .weather}}{{.description}}{{end}}, {{.main.temp}}°
+      {{end}}{{end}}
+    cache_ttl_seconds: 1800
+    rate_limit_rpm: 20
+    timeout_seconds: 10

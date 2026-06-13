@@ -1,0 +1,74 @@
+{{define "team-create"}}
+<div class="page-header">
+  <div>
+    <h2>Create Team</h2>
+    <p>Group agents under a leader for coordinated work.</p>
+  </div>
+  <a href="/teams" class="btn btn-secondary">Back to Teams</a>
+</div>
+
+<div class="card">
+  <div class="card-body">
+    <form method="POST" action="/teams">
+      <div class="form-group">
+        <label for="name">Name</label>
+        <input id="name" name="name" type="text" class="form-input" required placeholder="Platform Reliability" />
+      </div>
+
+      <div class="form-group mt-2">
+        <label for="description">Description</label>
+        <textarea id="description" name="description" rows="3" class="form-textarea" placeholder="Purpose and operating style"></textarea>
+      </div>
+
+      <div class="form-group mt-2">
+        <label for="leader_id">Leader</label>
+        <select id="leader_id" name="leader_id" class="form-select" required>
+          <option value="">Select leader...</option>
+          {{range .EligibleAgents}}
+          <option value="{{.ID}}">{{.Name}} ({{.ID}})</option>
+          {{end}}
+        </select>
+      </div>
+
+      <div class="form-group mt-2">
+        <label>Members</label>
+        {{if .EligibleAgents}}
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 8px; max-height: 280px; overflow: auto; padding: 8px; border: 1px solid var(--border-color); border-radius: 8px;">
+          {{range .EligibleAgents}}
+          <label style="display: flex; align-items: center; gap: 8px; margin: 0;">
+            <input type="checkbox" name="member_ids" value="{{.ID}}" />
+            <span>{{.Name}} <span style="color: var(--text-muted);">({{.ID}})</span></span>
+          </label>
+          {{end}}
+        </div>
+        <small style="color: var(--text-muted);">Leader is automatically included if not checked.</small>
+        {{else}}
+        <p style="color: var(--text-muted); margin: 0;">No eligible agents available. Agents already in a team are excluded.</p>
+        {{end}}
+      </div>
+
+      <div class="form-group mt-2">
+        <label>Communication Mode</label>
+        <label style="display: block; margin: 6px 0;">
+          <input type="radio" name="communication" value="leader-mediated" checked />
+          <strong>Leader-mediated</strong> — non-leaders can only message the leader.
+        </label>
+        <label style="display: block; margin: 6px 0;">
+          <input type="radio" name="communication" value="open" />
+          <strong>Open</strong> — all members can message each other directly.
+        </label>
+      </div>
+
+      <div class="form-group mt-2">
+        <label for="shared_context">Shared Context</label>
+        <textarea id="shared_context" name="shared_context" rows="5" class="form-textarea" placeholder="Team mission, constraints, priorities..."></textarea>
+      </div>
+
+      <div style="display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px;">
+        <a href="/teams" class="btn btn-secondary">Cancel</a>
+        <button type="submit" class="btn btn-primary">Create Team</button>
+      </div>
+    </form>
+  </div>
+</div>
+{{end}}

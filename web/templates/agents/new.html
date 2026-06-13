@@ -1,0 +1,1342 @@
+{{define "agents-new"}}
+<div id="wizard-content">
+  {{template "wizard-step1" .}}
+</div>
+{{template "wizard-scripts"}}
+{{end}}
+
+{{define "wizard-scripts"}}
+<script>
+/* ---------- global utility functions ---------- */
+
+function updateSlotCount() {
+  var count = document.querySelectorAll('#slot-list .slot-row').length;
+  var el = document.getElementById('adv-slot-count');
+  if (el) el.value = count;
+}
+
+function revertSection(btn) {
+  var container = btn.closest('.wizard-content');
+  if (!container) return;
+  var inputs = container.querySelectorAll('input, textarea, select');
+  inputs.forEach(function(el) {
+    var initial = el.getAttribute('data-initial');
+    if (initial !== null) {
+      if (el.type === 'checkbox' || el.type === 'radio') {
+        el.checked = initial === 'true';
+      } else {
+        el.value = initial;
+      }
+    }
+  });
+}
+
+function addOutboundEndpoint() {
+  var list = document.getElementById('outbound-list');
+  if (!list) return;
+  var row = document.createElement('div');
+  row.className = 'form-group';
+  row.innerHTML = '<input type="text" class="form-input outbound-name" placeholder="Name">'
+    + '<input type="text" class="form-input outbound-url" placeholder="https://...">'
+    + '<input type="text" class="form-input outbound-headers" placeholder="Header: Value">';
+  list.appendChild(row);
+}
+
+function addRestEndpoint() {
+  var list = document.getElementById('rest-list');
+  if (!list) return;
+  var row = document.createElement('div');
+  row.className = 'form-group';
+  row.innerHTML = '<input type="text" class="form-input rest-name" placeholder="Name">'
+    + '<input type="text" class="form-input rest-method" placeholder="GET">'
+    + '<input type="text" class="form-input rest-path" placeholder="/endpoint">'
+    + '<input type="text" class="form-input rest-desc" placeholder="Description">';
+  list.appendChild(row);
+}
+
+function addDraftSchedule() {
+  var nameEl = document.getElementById('draft_name');
+  var cronEl = document.getElementById('draft_cron');
+  var msgEl = document.getElementById('draft_message');
+  var chanEl = document.getElementById('draft_channel');
+  if (!nameEl || !cronEl || !msgEl) return;
+  var name = nameEl.value.trim();
+  var cron = cronEl.value.trim();
+  var message = msgEl.value.trim();
+  var channel = chanEl ? chanEl.value.trim() : '';
+  if (!name || !cron || !message) return;
+  var list = document.getElementById('draft-list');
+  var li = document.createElement('li');
+  li.textContent = name + ' \u2014 ' + cron;
+  list.appendChild(li);
+  var hidden = document.querySelector('input[name="schedule_drafts_json"]');
+  var drafts = [];
+  try { drafts = JSON.parse(hidden.value || '[]'); } catch (e) {}
+  drafts.push({name: name, cron_expr: cron, message: message, channel: channel});
+  hidden.value = JSON.stringify(drafts);
+}
+
+/* ---------- step-specific init (re-runs after each HTMX swap) ---------- */
+
+function _wizardInitStepScripts() {
+  /* Step 1: Show Advanced toggle */
+  var advToggle = document.getElementById('toggle-advanced');
+  if (advToggle && advToggle.type === 'checkbox') {
+    advToggle.addEventListener('change', function() {
+      var h = document.querySelector('input[name="show_advanced"]');
+      if (h) h.value = this.checked ? 'true' : 'false';
+    });
+  }
+
+  /* Step 1: Admin template visibility */
+  (function() {
+    function applyVis(val) {
+      var p = document.getElementById('admin-confirm');
+      if (p) p.style.display = val === 'admin' ? 'block' : 'none';
+    }
+    document.querySelectorAll('input[name="template"]').forEach(function(r) {
+      r.addEventListener('change', function() { applyVis(this.value); });
+    });
+    var sel = document.querySelector('input[name="template"]:checked');
+    if (sel) applyVis(sel.value);
+  })();
+
+  /* Step 1: Admin ack checkbox shows name field */
+  (function() {
+    var ack = document.getElementById('admin-ack');
+    var nf = document.getElementById('admin-name-field');
+    if (ack && nf) {
+      ack.addEventListener('change', function() {
+        nf.style.display = this.checked ? 'block' : 'none';
+      });
+    }
+  })();
+
+  /* Step 1: Unsaved indicator */
+  (function() {
+    var ind = document.getElementById('unsaved-indicator');
+    if (!ind) return;
+    document.querySelectorAll('.wizard-content input, .wizard-content textarea, .wizard-content select').forEach(function(el) {
+      if (el.getAttribute('data-initial') === null) {
+        if (el.type === 'checkbox' || el.type === 'radio') {
+          el.setAttribute('data-initial', el.checked ? 'true' : 'false');
+        } else {
+          el.setAttribute('data-initial', el.value || '');
+        }
+      }
+      el.addEventListener('change', function() { ind.style.display = ''; });
+      el.addEventListener('input', function() { ind.style.display = ''; });
+    });
+  })();
+
+  /* Step 1: Template locks */
+  (function() {
+    var lRaw = (document.querySelector('input[name="locked_json"]') || {}).value;
+    var cRaw = (document.querySelector('input[name="constrained_json"]') || {}).value;
+    var locked = []; var constrained = {};
+    try { if (lRaw) locked = JSON.parse(lRaw); } catch (e) {}
+    try { if (cRaw) constrained = JSON.parse(cRaw); } catch (e) {}
+    locked.forEach(function(f) {
+      var el = document.querySelector('[data-field="' + f + '"]');
+      if (el) { el.disabled = true; el.classList.add('is-locked'); }
+    });
+    Object.keys(constrained).forEach(function(f) {
+      var el = document.querySelector('[data-field="' + f + '"]');
+      if (el && constrained[f]) {
+        if (constrained[f].min !== undefined) el.setAttribute('min', constrained[f].min);
+        if (constrained[f].max !== undefined) el.setAttribute('max', constrained[f].max);
+      }
+    });
+  })();
+
+  /* Step 2: Soul/Identity preview */
+  (function() {
+    var preview = document.getElementById('soul-identity-preview');
+    if (!preview) return;
+    function sync() {
+      var s = (document.getElementById('soul_custom') || {}).value || '';
+      var i = (document.getElementById('identity_custom') || {}).value || '';
+      preview.textContent = [s, i].filter(Boolean).join('\n\n');
+    }
+    var sEl = document.getElementById('soul_custom');
+    var iEl = document.getElementById('identity_custom');
+    if (sEl) sEl.addEventListener('input', sync);
+    if (iEl) iEl.addEventListener('input', sync);
+    sync();
+  })();
+
+  /* Step 3: Simple/Advanced model toggle */
+  (function() {
+    var simpleDiv = document.getElementById('simple-model');
+    var advDiv = document.getElementById('advanced-model');
+    var tAdv = document.getElementById('toggle-advanced');
+    var tSimple = document.getElementById('toggle-simple');
+    if (!tAdv || !tSimple || !simpleDiv || !advDiv) return;
+
+    tAdv.addEventListener('click', function(e) {
+      e.preventDefault();
+      var prov = document.getElementById('provider');
+      var mdl = document.getElementById('model');
+      var firstRow = document.querySelector('#slot-list .slot-row');
+      if (firstRow && prov && mdl) {
+        var ps = firstRow.querySelector('select');
+        if (ps) ps.value = prov.value;
+        var mi = firstRow.querySelectorAll('input[type="text"]')[1];
+        if (mi) mi.value = mdl.value;
+      }
+      var sc = document.getElementById('simple-slot-count');
+      var sn = document.getElementById('simple-slot-name');
+      if (sc) sc.disabled = true;
+      if (sn) sn.disabled = true;
+      simpleDiv.style.display = 'none';
+      advDiv.style.display = '';
+    });
+
+    tSimple.addEventListener('click', function(e) {
+      e.preventDefault();
+      var rows = document.querySelectorAll('#slot-list .slot-row');
+      if (rows.length > 1) { alert('Remove extra slots first to switch to simple mode.'); return; }
+      if (rows.length === 1) {
+        var ps = rows[0].querySelector('select');
+        var mi = rows[0].querySelectorAll('input[type="text"]')[1];
+        if (ps) { var p = document.getElementById('provider'); if (p) p.value = ps.value; }
+        if (mi) { var m = document.getElementById('model'); if (m) m.value = mi.value; }
+      }
+      var sc = document.getElementById('simple-slot-count');
+      var sn = document.getElementById('simple-slot-name');
+      if (sc) sc.disabled = false;
+      if (sn) sn.disabled = false;
+      advDiv.style.display = 'none';
+      simpleDiv.style.display = '';
+    });
+  })();
+
+  /* Step 5: checkbox syncs */
+  ['webui_enabled', 'auto_extract_memories', 'timestamp_messages'].forEach(function(name) {
+    var cb = document.querySelector('input[type="checkbox"][name="' + name + '"]');
+    var hid = document.querySelector('input[type="hidden"][name="' + name + '"]');
+    if (!cb || !hid) return;
+    var sync = function() { hid.value = cb.checked ? 'true' : 'false'; };
+    cb.addEventListener('change', sync);
+    sync();
+  });
+
+  /* Step 5: Slack dedicated fields */
+  (function() {
+    var radios = document.querySelectorAll('input[name="slack_mode"]');
+    var ded = document.getElementById('slack-dedicated-fields');
+    if (!radios.length || !ded) return;
+    function sync() {
+      var sel = document.querySelector('input[name="slack_mode"]:checked');
+      ded.style.display = sel && sel.value === 'dedicated' ? '' : 'none';
+    }
+    radios.forEach(function(r) { r.addEventListener('change', sync); });
+    sync();
+  })();
+
+  /* Step 5: Discord dedicated fields */
+  (function() {
+    var radios = document.querySelectorAll('input[name="discord_mode"]');
+    var ded = document.getElementById('discord-dedicated-fields');
+    if (!radios.length || !ded) return;
+    function sync() {
+      var sel = document.querySelector('input[name="discord_mode"]:checked');
+      ded.style.display = sel && sel.value === 'dedicated' ? '' : 'none';
+    }
+    radios.forEach(function(r) { r.addEventListener('change', sync); });
+    sync();
+  })();
+
+  /* Step 7: Integration editing */
+  (function() {
+    var hidden = document.querySelector('input[name="integrations_json"]');
+    if (!hidden) return;
+    try {
+      var existing = hidden.value ? JSON.parse(hidden.value) : null;
+      if (existing) {
+        if (existing.webhooks_inbound) {
+          var e1 = document.getElementById('wh_inbound_enabled');
+          var e2 = document.getElementById('wh_inbound_secret');
+          var e3 = document.getElementById('wh_inbound_template');
+          if (e1) e1.checked = !!existing.webhooks_inbound.enabled;
+          if (e2) e2.value = existing.webhooks_inbound.secret || '';
+          if (e3) e3.value = existing.webhooks_inbound.template || '';
+        }
+        if (Array.isArray(existing.webhooks_outbound)) {
+          existing.webhooks_outbound.forEach(function(item) {
+            addOutboundEndpoint();
+            var rows = document.querySelectorAll('.outbound-name');
+            var idx = rows.length - 1;
+            rows[idx].value = item.name || '';
+            document.querySelectorAll('.outbound-url')[idx].value = item.url || '';
+            document.querySelectorAll('.outbound-headers')[idx].value = item.headers || '';
+          });
+        }
+        if (Array.isArray(existing.rest_endpoints)) {
+          existing.rest_endpoints.forEach(function(item) {
+            addRestEndpoint();
+            var rows = document.querySelectorAll('.rest-name');
+            var idx = rows.length - 1;
+            rows[idx].value = item.name || '';
+            document.querySelectorAll('.rest-method')[idx].value = item.method || '';
+            document.querySelectorAll('.rest-path')[idx].value = item.path || '';
+            document.querySelectorAll('.rest-desc')[idx].value = item.description || '';
+          });
+        }
+      }
+    } catch (e) {}
+    function serialize() {
+      var inbound = {
+        enabled: (document.getElementById('wh_inbound_enabled') || {}).checked || false,
+        secret: (document.getElementById('wh_inbound_secret') || {}).value || '',
+        template: (document.getElementById('wh_inbound_template') || {}).value || ''
+      };
+      var outbound = Array.from(document.querySelectorAll('.outbound-name')).map(function(el, i) {
+        return { name: el.value, url: (document.querySelectorAll('.outbound-url')[i] || {}).value || '', headers: (document.querySelectorAll('.outbound-headers')[i] || {}).value || '' };
+      }).filter(function(e) { return e.name || e.url; });
+      var rest = Array.from(document.querySelectorAll('.rest-name')).map(function(el, i) {
+        return { name: el.value, method: (document.querySelectorAll('.rest-method')[i] || {}).value || '', path: (document.querySelectorAll('.rest-path')[i] || {}).value || '', description: (document.querySelectorAll('.rest-desc')[i] || {}).value || '' };
+      }).filter(function(e) { return e.name || e.path; });
+      hidden.value = JSON.stringify({webhooks_inbound: inbound, webhooks_outbound: outbound, rest_endpoints: rest});
+    }
+    var wc = document.getElementById('wizard-content');
+    if (wc) { wc.addEventListener('input', serialize); wc.addEventListener('change', serialize); }
+    serialize();
+  })();
+
+  /* Step 4: Skills JSON sync */
+  (function() {
+    var hidden = document.querySelector('input[name="skills_json"]');
+    if (!hidden) return;
+    function sync() {
+      var selected = Array.from(document.querySelectorAll('input[name="skill_grant"]:checked')).map(function(el) { return el.value; });
+      hidden.value = JSON.stringify(selected);
+    }
+    var wc = document.getElementById('wizard-content');
+    if (wc) {
+      wc.addEventListener('change', function(e) {
+        if (e.target && e.target.name === 'skill_grant') { sync(); }
+      });
+    }
+    sync();
+  })();
+}
+
+/* Run on initial page load */
+_wizardInitStepScripts();
+
+/* Re-run after each HTMX swap into wizard-content */
+document.getElementById('wizard-content').addEventListener('htmx:afterSwap', function() {
+  _wizardInitStepScripts();
+});
+</script>
+{{end}}
+
+{{define "wizard-steps"}}
+{{ $step := .Step }}
+{{ $ctx := .Context }}
+<div class="wizard-steps">
+  <div class="wizard-step {{if ge $step 2}}completed{{else if eq $step 1}}active{{end}}">
+    <span class="step-number">{{if ge $step 2}}&#10003;{{else}}1{{end}}</span> <span class="step-label">Basics</span>
+  </div>
+  <div class="wizard-step {{if ge $step 3}}completed{{else if eq $step 2}}active{{end}}">
+    <span class="step-number">{{if ge $step 3}}&#10003;{{else}}2{{end}}</span> <span class="step-label">Soul &amp; Identity</span>
+  </div>
+  <div class="wizard-step {{if ge $step 4}}completed{{else if eq $step 3}}active{{end}}">
+    <span class="step-number">{{if ge $step 4}}&#10003;{{else}}3{{end}}</span> <span class="step-label">Models</span>
+  </div>
+  <div class="wizard-step {{if ge $step 5}}completed{{else if eq $step 4}}active{{end}}">
+    <span class="step-number">{{if ge $step 5}}&#10003;{{else}}4{{end}}</span> <span class="step-label">Skills</span>
+  </div>
+  <div class="wizard-step {{if ge $step 6}}completed{{else if eq $step 5}}active{{end}}">
+    <span class="step-number">{{if ge $step 6}}&#10003;{{else}}5{{end}}</span> <span class="step-label">Channels</span>
+  </div>
+  {{if and $ctx.AdvancedAllowed $ctx.ShowAdvanced}}
+  <div class="wizard-step {{if ge $step 7}}completed{{else if eq $step 6}}active{{end}}">
+    <span class="step-number">{{if ge $step 7}}&#10003;{{else}}6{{end}}</span> <span class="step-label">Tools &amp; Permissions</span>
+  </div>
+  <div class="wizard-step {{if ge $step 8}}completed{{else if eq $step 7}}active{{end}}">
+    <span class="step-number">{{if ge $step 8}}&#10003;{{else}}7{{end}}</span> <span class="step-label">Integrations</span>
+  </div>
+  <div class="wizard-step {{if ge $step 9}}completed{{else if eq $step 8}}active{{end}}">
+    <span class="step-number">{{if ge $step 9}}&#10003;{{else}}8{{end}}</span> <span class="step-label">Scheduling</span>
+  </div>
+  <div class="wizard-step {{if ge $step 10}}completed{{else if eq $step 9}}active{{end}}">
+    <span class="step-number">{{if ge $step 10}}&#10003;{{else}}9{{end}}</span> <span class="step-label">Limits &amp; Safety</span>
+  </div>
+  <div class="wizard-step {{if eq $step 10}}active{{end}}">
+    <span class="step-number">10</span> <span class="step-label">Team</span>
+  </div>
+  {{end}}
+</div>
+{{end}}
+
+{{define "wizard-hidden-fields"}}
+<input type="hidden" name="wizard_mode" value="{{.WizardMode}}">
+<input type="hidden" name="agent_id" value="{{.AgentID}}">
+<input type="hidden" name="show_advanced" value="{{if .ShowAdvanced}}true{{else}}false{{end}}">
+<input type="hidden" name="from_template_id" value="{{.FromTemplateID}}">
+<input type="hidden" name="locked_json" value="{{.LockedJSON}}">
+<input type="hidden" name="constrained_json" value="{{.ConstrainedJSON}}">
+<input type="hidden" name="name" value="{{.Name}}">
+<input type="hidden" name="description" value="{{.Description}}">
+<input type="hidden" name="system_prompt" value="{{.SystemPrompt}}">
+<input type="hidden" name="soul_content" value="{{.SoulContent}}">
+<input type="hidden" name="identity_content" value="{{.IdentityContent}}">
+<input type="hidden" name="provider" value="{{.Provider}}">
+<input type="hidden" name="model" value="{{.Model}}">
+<input type="hidden" name="template" value="{{.SelectedTemplate}}">
+<input type="hidden" name="model_slots_json" value="{{.ModelSlotsJSON}}">
+<input type="hidden" name="routing_config_json" value="{{.RoutingConfigJSON}}">
+<input type="hidden" name="skills_json" value="{{.SelectedSkillsJSON}}">
+<input type="hidden" name="tool_grants_json" value="{{.ToolGrantsJSON}}">
+<input type="hidden" name="capability_grants_json" value="{{.CapabilityGrantsJSON}}">
+<input type="hidden" name="host_paths_read" value="{{.HostPathsRead}}">
+<input type="hidden" name="host_paths_write" value="{{.HostPathsWrite}}">
+<input type="hidden" name="host_paths_deny" value="{{.HostPathsDeny}}">
+<input type="hidden" name="http_allowed_hosts" value="{{.HTTPAllowedHosts}}">
+<input type="hidden" name="shell_allowed_commands" value="{{.ShellAllowedCommands}}">
+<input type="hidden" name="can_message" value="{{.CanMessage}}">
+<input type="hidden" name="max_tokens_per_day" value="{{.MaxTokensPerDay}}">
+<input type="hidden" name="max_tokens_per_month" value="{{.MaxTokensPerMonth}}">
+<input type="hidden" name="max_spend_per_day" value="{{.MaxSpendPerDay}}">
+<input type="hidden" name="max_spend_per_month" value="{{.MaxSpendPerMonth}}">
+<input type="hidden" name="history_limit" value="{{.HistoryLimit}}">
+<input type="hidden" name="memory_limit" value="{{.MemoryLimit}}">
+<input type="hidden" name="auto_extract_memories" value="{{.AutoExtractMemories}}">
+<input type="hidden" name="timestamp_messages" value="{{.TimestampMessages}}">
+<input type="hidden" name="max_total_tokens" value="{{.MaxTotalTokens}}">
+<input type="hidden" name="soul_identity_pct" value="{{.SoulIdentityPct}}">
+<input type="hidden" name="skills_pct" value="{{.SkillsPct}}">
+<input type="hidden" name="memories_pct" value="{{.MemoriesPct}}">
+<input type="hidden" name="history_pct" value="{{.HistoryPct}}">
+<input type="hidden" name="slack_mode" value="{{.SlackMode}}">
+<input type="hidden" name="slack_channel" value="{{.SlackChannel}}">
+<input type="hidden" name="discord_mode" value="{{.DiscordMode}}">
+<input type="hidden" name="discord_channel_id" value="{{.DiscordChannelID}}">
+<input type="hidden" name="webui_enabled" value="{{.WebUIEnabled}}">
+<input type="hidden" name="heartbeat_enabled" value="{{.HeartbeatEnabled}}">
+<input type="hidden" name="heartbeat_interval" value="{{.HeartbeatInterval}}">
+<input type="hidden" name="heartbeat_prompt" value="{{.HeartbeatPrompt}}">
+<input type="hidden" name="heartbeat_quiet_hours" value="{{.HeartbeatQuietHours}}">
+<input type="hidden" name="integrations_json" value="{{.IntegrationsJSON}}">
+<input type="hidden" name="schedule_drafts_json" value="{{.ScheduleDraftsJSON}}">
+<input type="hidden" name="workers_enabled" value="{{.WorkersEnabled}}">
+<input type="hidden" name="workers_max_concurrent" value="{{.WorkersMaxConcurrent}}">
+<input type="hidden" name="workers_ttl_seconds" value="{{.WorkersTTLSeconds}}">
+<input type="hidden" name="workers_model_slot" value="{{.WorkersModelSlot}}">
+<input type="hidden" name="tier_acknowledged" value="{{.TierAcknowledged}}">
+<input type="hidden" name="tier_confirm_name" value="{{.TierConfirmName}}">
+<input type="hidden" name="circuit_breaker_enabled" value="{{.CircuitBreakerEnabled}}">
+<input type="hidden" name="circuit_breaker_error_threshold" value="{{.CircuitBreakerErrorThreshold}}">
+<input type="hidden" name="circuit_breaker_error_window_minutes" value="{{.CircuitBreakerErrorWindowMinutes}}">
+<input type="hidden" name="circuit_breaker_spending_velocity_pct" value="{{.CircuitBreakerSpendingVelocityPct}}">
+<input type="hidden" name="circuit_breaker_spending_window_minutes" value="{{.CircuitBreakerSpendingWindowMinutes}}">
+<input type="hidden" name="circuit_breaker_action_rate_per_minute" value="{{.CircuitBreakerActionRatePerMinute}}">
+<input type="hidden" name="circuit_breaker_destructive_limit" value="{{.CircuitBreakerDestructiveLimit}}">
+<input type="hidden" name="circuit_breaker_loop_identical_count" value="{{.CircuitBreakerLoopIdenticalCount}}">
+{{end}}
+
+{{define "wizard-step1"}}
+<form>
+  {{template "wizard-steps" (dict "Step" 1 "Context" .)}}
+  <div class="wizard-content">
+    <div style="display:flex; align-items:center; justify-content:space-between;">
+      <h3 class="mb-2">Basics</h3>
+      <div>
+        {{if .AdvancedAllowed}}
+        <label style="font-size: 12px; color: var(--text-secondary);">
+          <input type="checkbox" id="toggle-advanced" {{if .ShowAdvanced}}checked{{end}}>
+          Show Advanced
+        </label>
+        {{end}}
+        <span id="unsaved-indicator" class="badge badge-warning" style="display:none; margin-left:8px;">Unsaved changes</span>
+      </div>
+    </div>
+    {{if .Error}}<div class="alert alert-error">{{.Error}}</div>{{end}}
+    {{if .RequireTemplate}}
+    <div class="alert alert-warning">
+      Your account requires using a template to create agents.
+      <a href="/create-from-template" class="btn btn-success btn-sm" style="margin-left:8px">Create from Template</a>
+    </div>
+    {{end}}
+
+    <div class="form-group">
+      <label for="name">Name *</label>
+      <input type="text" id="name" name="name" class="form-input" required placeholder="e.g. Research Assistant" value="{{.Name}}" data-field="name">
+    </div>
+    <div class="form-group">
+      <label for="description">Description</label>
+      <input type="text" id="description" name="description" class="form-input" placeholder="What does this agent do?" value="{{.Description}}" data-field="description">
+    </div>
+
+    <div class="form-group">
+      <label>Permission Tier *</label>
+      <div class="radio-group">
+        {{range .Templates}}
+        <label class="radio-option">
+          <input type="radio" name="template" value="{{.Name}}" {{if eq $.SelectedTemplate .Name}}checked{{end}} data-field="template">
+          <div>
+            <div class="radio-label">{{.Name}}</div>
+            <div class="radio-desc">{{.Description}}</div>
+            {{with index $.TierInfo .Name}}
+            <div style="margin-top: 6px; font-size: 12px;">
+              <span class="badge badge-default" style="font-size: 11px;">KTP Tier: {{.Tier}}</span>
+              <div style="margin-top: 4px; color: var(--text-secondary);">
+                {{range .Capabilities}}<span class="text-mono" style="display: inline-block; margin-right: 8px; font-size: 11px;">{{.}}</span>{{end}}
+              </div>
+              {{if eq .Warning "caution"}}
+              <div class="alert alert-warning" style="margin-top: 4px; padding: 4px 8px; font-size: 12px;">{{.WarningText}}</div>
+              {{else if eq .Warning "danger"}}
+              <div class="alert alert-error" style="margin-top: 4px; padding: 4px 8px; font-size: 12px;">{{.WarningText}}</div>
+              {{end}}
+            </div>
+            {{end}}
+          </div>
+        </label>
+        {{end}}
+      </div>
+    </div>
+
+    <!-- Tier acknowledgment for admin -->
+    <div id="admin-confirm" class="alert alert-error" style="display:none; margin-top: 16px; border-width: 2px;">
+      <h4 style="margin-bottom: 8px;">Full System Access</h4>
+      <p style="font-size: 13px; margin-bottom: 12px;">This agent will have unrestricted access to all capabilities including the host filesystem. All actions are still audited.</p>
+      <div class="form-group">
+        <label><input type="checkbox" name="tier_acknowledged" value="true" id="admin-ack" {{if and (eq .SelectedTemplate "admin") (eq .TierAcknowledged "true")}}checked{{end}}> I understand the security implications</label>
+      </div>
+      <div id="admin-name-field" style="display: {{if and (eq .SelectedTemplate "admin") (eq .TierAcknowledged "true")}}block{{else}}none{{end}};">
+        <label>Type the agent name to confirm:</label>
+        <input type="text" name="tier_confirm_name" class="form-input" placeholder="Agent name" value="{{.TierConfirmName}}">
+      </div>
+    </div>
+
+    {{template "wizard-hidden-fields" .}}
+
+    <div class="wizard-actions">
+      <span></span>
+      <div>
+        <button id="quick-create-btn" type="submit" class="btn btn-secondary" style="display:none; margin-right:8px;" hx-post="/agents/new/quick-review" hx-target="#wizard-content" hx-swap="innerHTML" hx-include="closest form">Quick Create</button>
+        <button type="submit" class="btn btn-primary" hx-post="/agents/new/step2" hx-target="#wizard-content" hx-swap="innerHTML" hx-include="closest form">Next: Soul &amp; Identity</button>
+      </div>
+    </div>
+  </div>
+</form>
+{{end}}
+
+{{define "wizard-quick-review"}}
+<form>
+  <div class="wizard-content">
+    <h3 class="mb-2">Quick Create — Review</h3>
+    <p style="font-size: 13px; color: var(--text-secondary); margin-bottom: 16px;">Review the template settings below. Edit name and description, then create or customize further.</p>
+    {{if .Error}}<div class="alert alert-error">{{.Error}}</div>{{end}}
+    {{template "wizard-hidden-fields" .}}
+
+    <div class="form-group">
+      <label for="qr-name">Name *</label>
+      <input type="text" id="qr-name" name="name" class="form-input" required value="{{.Name}}">
+    </div>
+    <div class="form-group">
+      <label for="qr-description">Description</label>
+      <input type="text" id="qr-description" name="description" class="form-input" value="{{.Description}}">
+    </div>
+
+    <table class="table" style="margin-top: 16px; font-size: 13px;">
+      <tbody>
+        <tr><td style="font-weight:600; width:140px;">Permission Tier</td><td>{{.SelectedTemplate}}</td></tr>
+        {{if .ModelDisplay}}<tr><td style="font-weight:600;">Model</td><td>{{.ModelDisplay}}</td></tr>{{end}}
+        {{if .SoulPreview}}<tr><td style="font-weight:600;">Soul</td><td><pre style="white-space:pre-wrap; margin:0; font-size:12px;">{{.SoulPreview}}</pre></td></tr>{{end}}
+        {{if .IdentityPreview}}<tr><td style="font-weight:600;">Identity</td><td><pre style="white-space:pre-wrap; margin:0; font-size:12px;">{{.IdentityPreview}}</pre></td></tr>{{end}}
+        {{if .MaxTokensPerDay}}<tr><td style="font-weight:600;">Tokens/Day</td><td>{{.MaxTokensPerDay}}</td></tr>{{end}}
+        {{if .MaxTokensPerMonth}}<tr><td style="font-weight:600;">Tokens/Month</td><td>{{.MaxTokensPerMonth}}</td></tr>{{end}}
+        {{if .MaxSpendPerDay}}<tr><td style="font-weight:600;">Spend/Day</td><td>${{.MaxSpendPerDay}}</td></tr>{{end}}
+        {{if .MaxSpendPerMonth}}<tr><td style="font-weight:600;">Spend/Month</td><td>${{.MaxSpendPerMonth}}</td></tr>{{end}}
+      </tbody>
+    </table>
+
+    {{if eq .SelectedTemplate "admin"}}
+    <div class="alert alert-error" style="margin-top: 16px; border-width: 2px;">
+      <h4 style="margin-bottom: 8px;">Full System Access</h4>
+      <p style="font-size: 13px; margin-bottom: 12px;">This agent will have unrestricted access to all capabilities including the host filesystem. All actions are still audited.</p>
+      <div class="form-group">
+        <label><input type="checkbox" name="tier_acknowledged" value="true" id="qr-admin-ack" {{if eq .TierAcknowledged "true"}}checked{{end}}> I understand the security implications</label>
+      </div>
+      <div id="qr-admin-name-field" style="display: {{if eq .TierAcknowledged "true"}}block{{else}}none{{end}};">
+        <label>Type the agent name to confirm:</label>
+        <input type="text" name="tier_confirm_name" class="form-input" placeholder="Agent name" value="{{.TierConfirmName}}">
+      </div>
+    </div>
+    <script>
+    (function() {
+      var ack = document.getElementById('qr-admin-ack');
+      var field = document.getElementById('qr-admin-name-field');
+      if (ack && field) {
+        ack.addEventListener('change', function() { field.style.display = this.checked ? 'block' : 'none'; });
+      }
+    })();
+    </script>
+    {{end}}
+
+    <div class="wizard-actions">
+      <button type="submit" class="btn btn-secondary" hx-post="/agents/new/step2" hx-target="#wizard-content" hx-swap="innerHTML" hx-include="closest form">Customize Steps</button>
+      <button type="submit" class="btn btn-primary" hx-post="/agents" hx-target="#wizard-content" hx-swap="innerHTML" hx-include="closest form">Create Agent</button>
+    </div>
+  </div>
+</form>
+{{end}}
+
+{{define "wizard-step2"}}
+<form>
+  {{template "wizard-steps" (dict "Step" 2 "Context" .)}}
+  <div class="wizard-content">
+    <h3 class="mb-2">Soul &amp; Identity</h3>
+    {{if .Error}}<div class="alert alert-error">{{.Error}}</div>{{end}}
+    {{template "wizard-hidden-fields" .}}
+
+    <div class="tab-group">
+      <input type="radio" name="soul_tab" id="soul-tab-presets" value="presets" class="tab-radio" {{if ne .SoulTab "custom"}}{{if ne .SoulTab "existing"}}checked{{end}}{{end}}>
+      <label for="soul-tab-presets" class="tab-label">Soul Presets</label>
+      <input type="radio" name="soul_tab" id="soul-tab-custom" value="custom" class="tab-radio" {{if eq .SoulTab "custom"}}checked{{end}}>
+      <label for="soul-tab-custom" class="tab-label">Soul Custom</label>
+      <input type="radio" name="soul_tab" id="soul-tab-existing" value="existing" class="tab-radio" {{if eq .SoulTab "existing"}}checked{{end}}>
+      <label for="soul-tab-existing" class="tab-label">Soul Existing</label>
+
+      <div class="tab-panel" id="soul-panel-presets">
+        <div class="radio-group">
+          {{range .SoulPresets}}
+          <label class="radio-option">
+            <input type="radio" name="soul_preset" value="{{.ID}}">
+            <div>
+              <div class="radio-label">{{.Name}}</div>
+              <div class="radio-desc">{{.Description}}</div>
+            </div>
+          </label>
+          {{end}}
+        </div>
+      </div>
+
+      <div class="tab-panel" id="soul-panel-custom">
+        <div class="form-group">
+          <label for="soul_custom">Custom Soul (Markdown)</label>
+          <textarea id="soul_custom" name="soul_custom" class="form-textarea" style="min-height: 160px;" placeholder="# Soul: My Custom Personality&#10;&#10;## Core Personality&#10;...">{{.SoulContent}}</textarea>
+        </div>
+      </div>
+
+      <div class="tab-panel" id="soul-panel-existing">
+        <div hx-get="/agents/souls" hx-trigger="intersect once" hx-swap="innerHTML">
+          <p style="color: var(--text-muted); font-size: 13px;">Loading existing agents...</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="tab-group" style="margin-top:16px;">
+      <input type="radio" name="identity_tab" id="identity-tab-presets" value="presets" class="tab-radio" {{if ne .IdentityTab "custom"}}{{if ne .IdentityTab "existing"}}checked{{end}}{{end}}>
+      <label for="identity-tab-presets" class="tab-label">Identity Presets</label>
+      <input type="radio" name="identity_tab" id="identity-tab-custom" value="custom" class="tab-radio" {{if eq .IdentityTab "custom"}}checked{{end}}>
+      <label for="identity-tab-custom" class="tab-label">Identity Custom</label>
+      <input type="radio" name="identity_tab" id="identity-tab-existing" value="existing" class="tab-radio" {{if eq .IdentityTab "existing"}}checked{{end}}>
+      <label for="identity-tab-existing" class="tab-label">Identity Existing</label>
+
+      <div class="tab-panel" id="identity-panel-presets">
+        <div class="radio-group">
+          {{range .RoleTemplates}}
+          <label class="radio-option">
+            <input type="radio" name="identity_preset" value="{{.ID}}">
+            <div>
+              <div class="radio-label">{{.Name}}</div>
+              <div class="radio-desc">{{.Description}}</div>
+            </div>
+          </label>
+          {{end}}
+        </div>
+      </div>
+
+      <div class="tab-panel" id="identity-panel-custom">
+        <div class="form-group">
+          <label for="identity_custom">Custom Identity (Markdown)</label>
+          <textarea id="identity_custom" name="identity_custom" class="form-textarea" style="min-height: 160px;" placeholder="# Role: My Custom Role&#10;&#10;## Responsibilities&#10;...">{{.IdentityContent}}</textarea>
+        </div>
+      </div>
+
+      <div class="tab-panel" id="identity-panel-existing">
+        <div hx-get="/agents/roles" hx-trigger="intersect once" hx-swap="innerHTML">
+          <p style="color: var(--text-muted); font-size: 13px;">Loading existing agents...</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="form-group" style="margin-top:16px;">
+      <label>Preview</label>
+      <pre id="soul-identity-preview" style="white-space: pre-wrap; padding: 12px; border: 1px solid var(--border-color); border-radius: 6px; background: var(--bg-secondary);">Soul + Identity preview will appear here.</pre>
+    </div>
+
+    <div class="wizard-actions">
+      <button type="button" class="btn btn-secondary" onclick="revertSection(this)">Revert</button>
+      <div>
+        <button type="submit" class="btn btn-secondary" hx-post="/agents/new/step1" hx-target="#wizard-content" hx-swap="innerHTML" hx-include="closest form">Back</button>
+        <button type="submit" class="btn btn-primary" hx-post="/agents/new/step3" hx-target="#wizard-content" hx-swap="innerHTML" hx-include="closest form">Next: Models</button>
+      </div>
+    </div>
+  </div>
+</form>
+{{end}}
+
+{{define "soul-existing"}}
+{{if .Agents}}
+<div class="form-group">
+  <label for="soul_existing_select">Copy soul from agent</label>
+  <select id="soul_existing_select" name="soul_existing" class="form-select">
+    <option value="">Select an agent...</option>
+    {{range .Agents}}
+    <option value="{{.SoulContent}}">{{.Name}}</option>
+    {{end}}
+  </select>
+</div>
+{{else}}
+<p style="color: var(--text-muted); font-size: 13px; padding: 12px 0;">No agents with soul content found.</p>
+{{end}}
+{{end}}
+
+{{define "role-existing"}}
+{{if .Agents}}
+<div class="form-group">
+  <label for="role_existing_select">Copy identity from agent</label>
+  <select id="role_existing_select" name="identity_existing" class="form-select">
+    <option value="">Select an agent...</option>
+    {{range .Agents}}
+    <option value="{{.IdentityContent}}">{{.Name}}</option>
+    {{end}}
+  </select>
+</div>
+{{else}}
+<p style="color: var(--text-muted); font-size: 13px; padding: 12px 0;">No agents with identity content found.</p>
+{{end}}
+{{end}}
+
+{{define "identity-existing"}}
+{{if .Agents}}
+<div class="form-group">
+  <label for="identity_existing_select">Copy identity from agent</label>
+  <select id="identity_existing_select" name="identity_existing" class="form-select">
+    <option value="">Select an agent...</option>
+    {{range .Agents}}
+    <option value="{{.IdentityContent}}">{{.Name}}</option>
+    {{end}}
+  </select>
+</div>
+{{else}}
+<p style="color: var(--text-muted); font-size: 13px; padding: 12px 0;">No agents with identity content found.</p>
+{{end}}
+{{end}}
+
+{{define "wizard-step3"}}
+<form>
+  {{template "wizard-steps" (dict "Step" 3 "Context" .)}}
+  <div class="wizard-content">
+    <h3 class="mb-2">Models</h3>
+    {{if .Error}}<div class="alert alert-error">{{.Error}}</div>{{end}}
+    {{template "wizard-hidden-fields" .}}
+
+    <!-- Simple mode (default) -->
+    <div id="simple-model" {{if .AdvancedMode}}style="display:none;"{{end}}>
+      <div class="form-group">
+        <label for="provider">Provider *</label>
+        <select id="provider" name="slot_provider_0" class="form-select">
+          <option value="">Select a provider...</option>
+          {{range .Providers}}
+            <option value="{{.Name}}" {{if eq $.Provider .Name}}selected{{end}}>{{.Name}}</option>
+          {{end}}
+        </select>
+      </div>
+      <div class="form-group">
+        <label for="model">Model *</label>
+        <input type="text" id="model" name="slot_model_0" class="form-input" placeholder="e.g. deepseek/deepseek-chat" value="{{.Model}}">
+        <span class="hint">Enter the model identifier for your chosen provider.</span>
+      </div>
+      <input type="hidden" name="slot_count" id="simple-slot-count" value="1">
+      <input type="hidden" name="slot_name_0" id="simple-slot-name" value="default">
+      <input type="hidden" name="slot_default_0" value="true">
+      <div class="mode-toggle">
+        <a href="#" id="toggle-advanced">+ Add more models (advanced)</a>
+      </div>
+    </div>
+
+    <!-- Advanced mode -->
+    <div id="advanced-model" {{if not .AdvancedMode}}style="display:none;"{{end}}>
+      <div id="slot-list">
+        {{if .Slots}}
+          {{range $i, $slot := .Slots}}
+          <div class="slot-row">
+            <input type="text" name="slot_name_{{$i}}" class="form-input slot-name" placeholder="Slot name" value="{{$slot.Name}}">
+            <select name="slot_provider_{{$i}}" class="form-select">
+              <option value="">Provider...</option>
+              {{range $.Providers}}
+                <option value="{{.Name}}" {{if eq $slot.Provider .Name}}selected{{end}}>{{.Name}}</option>
+              {{end}}
+            </select>
+            <input type="text" name="slot_model_{{$i}}" class="form-input" placeholder="Model ID" value="{{$slot.Model}}">
+            <label class="checkbox-label" style="flex: 0 0 auto; margin: 0;">
+              <input type="hidden" name="slot_default_{{$i}}" value="false">
+              <input type="checkbox" name="slot_default_{{$i}}" value="true" class="slot-default-radio" {{if eq $slot.Name $.DefaultSlot}}checked{{end}}>
+              <span style="font-size: 12px;">Default</span>
+            </label>
+            <button type="button" class="btn btn-danger btn-sm btn-remove" onclick="this.closest('.slot-row').remove(); updateSlotCount();">&#10005;</button>
+          </div>
+          {{end}}
+        {{else}}
+          <div class="slot-row">
+            <input type="text" name="slot_name_0" class="form-input slot-name" placeholder="Slot name" value="default">
+            <select name="slot_provider_0" class="form-select">
+              <option value="">Provider...</option>
+              {{range .Providers}}
+                <option value="{{.Name}}" {{if eq $.Provider .Name}}selected{{end}}>{{.Name}}</option>
+              {{end}}
+            </select>
+            <input type="text" name="slot_model_0" class="form-input" placeholder="Model ID" value="{{.Model}}">
+            <label class="checkbox-label" style="flex: 0 0 auto; margin: 0;">
+              <input type="hidden" name="slot_default_0" value="false">
+              <input type="checkbox" name="slot_default_0" value="true" class="slot-default-radio" checked>
+              <span style="font-size: 12px;">Default</span>
+            </label>
+            <button type="button" class="btn btn-danger btn-sm btn-remove" onclick="this.closest('.slot-row').remove(); updateSlotCount();">&#10005;</button>
+          </div>
+        {{end}}
+      </div>
+      <input type="hidden" name="slot_count" id="adv-slot-count" value="{{if .Slots}}{{len .Slots}}{{else}}1{{end}}">
+
+      <div style="margin-top: 8px; margin-bottom: 16px;">
+        <button type="button" class="btn btn-secondary btn-sm" id="add-slot-btn"
+                hx-post="/agents/new/slot-row"
+                hx-target="#slot-list"
+                hx-swap="beforeend"
+                hx-include="[name='slot_count']"
+                hx-on::after-request="updateSlotCount();">+ Add slot</button>
+      </div>
+
+      <h4 class="mb-1">Routing Options</h4>
+      <p class="mb-2" style="color: var(--text-secondary); font-size: 13px;">Configure how the agent selects between model slots.</p>
+      <div class="form-group">
+        <label class="checkbox-label">
+          <input type="checkbox" name="auto_route" value="true" {{if and .RoutingConfig .RoutingConfig.AutoRoute}}checked{{end}}>
+          <span>Auto-route by classification</span>
+        </label>
+        <span class="hint">Automatically classify messages to select the best slot.</span>
+      </div>
+      <div class="form-group">
+        <label class="checkbox-label">
+          <input type="checkbox" name="trigger_prefix" value="true" {{if and .RoutingConfig .RoutingConfig.TriggerPrefix}}checked{{end}}>
+          <span>Trigger prefix routing</span>
+        </label>
+        <span class="hint">Allow users to select a slot with @slotname prefix.</span>
+      </div>
+      <div class="form-group">
+        <label for="classifier_slot">Classifier Slot</label>
+        <input type="text" name="classifier_slot" class="form-input" placeholder="e.g. fast" value="{{if .RoutingConfig}}{{.RoutingConfig.ClassifierSlot}}{{end}}">
+        <span class="hint">Slot used for classification (should be a fast/cheap model).</span>
+      </div>
+      <div class="form-group">
+        <label for="fallback_slot">Fallback Slot</label>
+        <input type="text" name="fallback_slot" class="form-input" placeholder="e.g. default" value="{{if .RoutingConfig}}{{.RoutingConfig.FallbackSlot}}{{end}}">
+        <span class="hint">Slot used when routing fails. Leave empty to use the default slot.</span>
+      </div>
+
+      <div class="mode-toggle">
+        <a href="#" id="toggle-simple">Switch to simple mode</a>
+      </div>
+    </div>
+
+    <div class="wizard-actions">
+      <button type="button" class="btn btn-secondary" onclick="revertSection(this)">Revert</button>
+      <div>
+        <button type="submit" class="btn btn-secondary" hx-post="/agents/new/step2" hx-target="#wizard-content" hx-swap="innerHTML" hx-include="closest form">Back</button>
+        <button type="submit" class="btn btn-primary" hx-post="/agents/new/step4" hx-target="#wizard-content" hx-swap="innerHTML" hx-include="closest form">Next: Skills</button>
+      </div>
+    </div>
+  </div>
+</form>
+{{end}}
+
+{{define "slot-row"}}
+<div class="slot-row">
+  <input type="text" name="slot_name_{{.Idx}}" class="form-input slot-name" placeholder="Slot name" value="">
+  <select name="slot_provider_{{.Idx}}" class="form-select">
+    <option value="">Provider...</option>
+    {{range .Providers}}
+      <option value="{{.Name}}">{{.Name}}</option>
+    {{end}}
+  </select>
+  <input type="text" name="slot_model_{{.Idx}}" class="form-input" placeholder="Model ID" value="">
+  <label class="checkbox-label" style="flex: 0 0 auto; margin: 0;">
+    <input type="hidden" name="slot_default_{{.Idx}}" value="false">
+    <input type="checkbox" name="slot_default_{{.Idx}}" value="true" class="slot-default-radio">
+    <span style="font-size: 12px;">Default</span>
+  </label>
+  <button type="button" class="btn btn-danger btn-sm btn-remove" onclick="this.closest('.slot-row').remove(); updateSlotCount();">&#10005;</button>
+</div>
+{{end}}
+
+{{define "cap-row"}}
+<div style="display: flex; gap: 8px; margin-bottom: 8px;">
+  <input type="text" name="cap_tool_{{.Idx}}" class="form-input" placeholder="tool" style="flex:1;">
+  <input type="text" name="cap_action_{{.Idx}}" class="form-input" placeholder="action" style="flex:1;">
+  <input type="text" name="cap_resource_{{.Idx}}" class="form-input" placeholder="resource" style="flex:1;">
+</div>
+{{end}}
+
+{{define "wizard-step4"}}
+<form>
+  {{template "wizard-steps" (dict "Step" 4 "Context" .)}}
+  <div class="wizard-content">
+    <h3 class="mb-2">Skills</h3>
+    <p class="mb-2" style="color: var(--text-secondary); font-size: 13px;">Grant skills to this agent (filtered by permission tier).</p>
+    {{if .Error}}<div class="alert alert-error">{{.Error}}</div>{{end}}
+    {{template "wizard-hidden-fields" .}}
+
+    {{if .AvailableSkills}}
+    <div class="radio-group">
+      {{range .AvailableSkills}}
+      <label class="radio-option" style="cursor: pointer;">
+        <input type="checkbox" name="skill_grant" value="{{.Name}}" {{if index $.SelectedSkillsSet .Name}}checked{{end}}>
+        <div>
+          <div class="radio-label">{{.Name}}</div>
+          <div class="radio-desc">{{.Description}}</div>
+        </div>
+      </label>
+      {{end}}
+    </div>
+    {{else}}
+    <p style="color: var(--text-muted); font-size: 13px;">No skills available for this permission tier.</p>
+    {{end}}
+
+    <div class="wizard-actions">
+      <button type="button" class="btn btn-secondary" onclick="revertSection(this)">Revert</button>
+      <div>
+        <button type="submit" class="btn btn-secondary" hx-post="/agents/new/step3" hx-target="#wizard-content" hx-swap="innerHTML" hx-include="closest form">Back</button>
+        <button type="submit" class="btn btn-primary" hx-post="/agents/new/step5" hx-target="#wizard-content" hx-swap="innerHTML" hx-include="closest form">Next: Channels</button>
+      </div>
+    </div>
+  </div>
+</form>
+{{end}}
+
+{{define "wizard-step5"}}
+<form>
+  {{template "wizard-steps" (dict "Step" 5 "Context" .)}}
+  <div class="wizard-content">
+    <h3 class="mb-2">Channels</h3>
+    {{template "wizard-hidden-fields" .}}
+
+    <div class="form-group">
+      <label class="checkbox-label">
+        <input type="hidden" name="webui_enabled" value="false">
+        <input type="checkbox" name="webui_enabled" value="true" {{if ne .WebUIEnabled "false"}}checked{{end}}>
+        <span>Enable Web UI</span>
+      </label>
+    </div>
+
+    {{if .SlackAvailable}}
+    <div class="form-group">
+      <label>Slack Mode</label>
+      <div class="radio-group">
+        <label class="radio-option"><input type="radio" name="slack_mode" value="none" {{if eq .SlackMode "none"}}checked{{end}}> <div><div class="radio-label">None</div><div class="radio-desc">No Slack integration.</div></div></label>
+        <label class="radio-option"><input type="radio" name="slack_mode" value="primary" {{if eq .SlackMode "primary"}}checked{{end}}> <div><div class="radio-label">Primary</div><div class="radio-desc">Use shared Slack credentials.</div></div></label>
+        <label class="radio-option"><input type="radio" name="slack_mode" value="dedicated" {{if eq .SlackMode "dedicated"}}checked{{end}}> <div><div class="radio-label">Dedicated</div><div class="radio-desc">Use agent-specific Slack credentials.</div></div></label>
+      </div>
+    </div>
+    <div class="form-group">
+      <label for="slack_channel">Channel (if primary)</label>
+      <input type="text" id="slack_channel" name="slack_channel" class="form-input" placeholder="#alerts" value="{{.SlackChannel}}">
+    </div>
+    <div id="slack-dedicated-fields" style="display:none;">
+      <div class="form-group">
+        <label for="slack_bot_token">Bot Token</label>
+        <input type="password" id="slack_bot_token" name="slack_bot_token" class="form-input" placeholder="xoxb-...">
+      </div>
+      <div class="form-group">
+        <label for="slack_app_token">App Token</label>
+        <input type="password" id="slack_app_token" name="slack_app_token" class="form-input" placeholder="xapp-...">
+      </div>
+      <div class="form-group">
+        <label for="slack_signing_secret">Signing Secret</label>
+        <input type="password" id="slack_signing_secret" name="slack_signing_secret" class="form-input">
+      </div>
+    </div>
+    {{end}}
+
+    {{if .DiscordAvailable}}
+    <div class="form-group">
+      <label>Discord Mode</label>
+      <div class="radio-group">
+        <label class="radio-option"><input type="radio" name="discord_mode" value="none" {{if eq .DiscordMode "none"}}checked{{end}}> <div><div class="radio-label">None</div><div class="radio-desc">No Discord integration.</div></div></label>
+        <label class="radio-option"><input type="radio" name="discord_mode" value="primary" {{if eq .DiscordMode "primary"}}checked{{end}}> <div><div class="radio-label">Primary</div><div class="radio-desc">Use shared Discord bot.</div></div></label>
+        <label class="radio-option"><input type="radio" name="discord_mode" value="dedicated" {{if eq .DiscordMode "dedicated"}}checked{{end}}> <div><div class="radio-label">Dedicated</div><div class="radio-desc">Use agent-specific Discord bot.</div></div></label>
+      </div>
+    </div>
+    <div class="form-group">
+      <label for="discord_channel_id">Channel ID (if primary)</label>
+      <input type="text" id="discord_channel_id" name="discord_channel_id" class="form-input" placeholder="123456789012345678" value="{{.DiscordChannelID}}">
+    </div>
+    <div id="discord-dedicated-fields" style="display:none;">
+      <div class="form-group">
+        <label for="discord_bot_token">Bot Token</label>
+        <input type="password" id="discord_bot_token" name="discord_bot_token" class="form-input" placeholder="Bot token">
+      </div>
+    </div>
+    {{end}}
+
+    <div class="form-group">
+      <label for="can_message">Internal Bus Visibility</label>
+      <input type="text" id="can_message" name="can_message" class="form-input" placeholder="agent-id-1, team:ops" value="{{.CanMessage}}">
+      <span class="hint">Comma-separated list of agent IDs or team grants. Leave empty to restrict to same-team only.</span>
+    </div>
+
+    <div class="wizard-actions">
+      <button type="button" class="btn btn-secondary" onclick="revertSection(this)">Revert</button>
+      <div>
+        <button type="submit" class="btn btn-secondary" hx-post="/agents/new/step4" hx-target="#wizard-content" hx-swap="innerHTML" hx-include="closest form">Back</button>
+        {{if and .AdvancedAllowed .ShowAdvanced}}
+        <button type="submit" class="btn btn-primary" hx-post="/agents/new/step6" hx-target="#wizard-content" hx-swap="innerHTML" hx-include="closest form">Next: Tools &amp; Permissions</button>
+        {{else}}
+        <button type="submit" class="btn btn-primary" hx-post="/agents/new/step10" hx-target="#wizard-content" hx-swap="innerHTML" hx-include="closest form">Review &amp; Save</button>
+        {{end}}
+      </div>
+    </div>
+  </div>
+</form>
+{{end}}
+
+{{define "wizard-step6"}}
+<form>
+  {{template "wizard-steps" (dict "Step" 6 "Context" .)}}
+  <div class="wizard-content">
+    <h3 class="mb-2">Tools &amp; Permissions</h3>
+    {{template "wizard-hidden-fields" .}}
+
+    {{if .AgentTier}}
+    <div style="margin-bottom: 16px;">
+      <span class="badge badge-default" style="font-size: 12px;">KTP Tier: {{.AgentTier}}</span>
+    </div>
+    {{end}}
+
+    <h4 class="mb-1">Tool Grants</h4>
+    {{if .AvailableTools}}
+    <div class="radio-group">
+      {{range .AvailableTools}}
+      <label class="radio-option" style="cursor: pointer;">
+        <input type="checkbox" name="tool_grants" value="{{.Name}}" {{if $.RestrictedTools}}{{if index $.ToolGrantSet .Name}}checked{{end}}{{else}}{{if index $.DefaultToolSet .Name}}checked{{end}}{{end}}>
+        <div>
+          <div class="radio-label">{{.Name}} <span class="text-mono" style="font-size: 11px; color: var(--text-muted);">v{{.Version}}</span></div>
+          <div class="radio-desc">{{.Description}} ({{len .Actions}} action{{if ne (len .Actions) 1}}s{{end}})</div>
+        </div>
+      </label>
+      {{end}}
+    </div>
+    {{else}}
+    <p style="color: var(--text-muted); font-size: 13px;">No tools registered in the system.</p>
+    {{end}}
+
+    <h4 class="mb-1" style="margin-top: 16px;">Host Filesystem Access</h4>
+    <div class="form-group">
+      <label>Read Paths</label>
+      <textarea name="host_paths_read" rows="3" class="form-textarea">{{.HostPathsRead}}</textarea>
+    </div>
+    <div class="form-group">
+      <label>Write Paths</label>
+      <textarea name="host_paths_write" rows="3" class="form-textarea">{{.HostPathsWrite}}</textarea>
+    </div>
+    <div class="form-group">
+      <label>Deny Paths (always blocked)</label>
+      <textarea name="host_paths_deny" rows="2" class="form-textarea">{{.HostPathsDeny}}</textarea>
+      <small style="color: var(--text-muted);">Default deny paths are always enforced.</small>
+    </div>
+
+    <h4 class="mb-1" style="margin-top: 16px;">HTTP / Shell Allowlist</h4>
+    <div class="form-group">
+      <label>Allowed HTTP Hosts</label>
+      <textarea name="http_allowed_hosts" rows="3" class="form-textarea" placeholder="api.example.com">{{.HTTPAllowedHosts}}</textarea>
+    </div>
+    <div class="form-group">
+      <label>Allowed Shell Commands</label>
+      <textarea name="shell_allowed_commands" rows="3" class="form-textarea" placeholder="git\nmake">{{.ShellAllowedCommands}}</textarea>
+    </div>
+
+    <div class="wizard-actions">
+      <button type="button" class="btn btn-secondary" onclick="revertSection(this)">Revert</button>
+      <div>
+        <button type="submit" class="btn btn-secondary" hx-post="/agents/new/step5" hx-target="#wizard-content" hx-swap="innerHTML" hx-include="closest form">Back</button>
+        <button type="submit" class="btn btn-primary" hx-post="/agents/new/step7" hx-target="#wizard-content" hx-swap="innerHTML" hx-include="closest form">Next: Integrations</button>
+      </div>
+    </div>
+  </div>
+</form>
+{{end}}
+
+{{define "wizard-step7"}}
+<form>
+  {{template "wizard-steps" (dict "Step" 7 "Context" .)}}
+  <div class="wizard-content">
+    <h3 class="mb-2">Integrations</h3>
+    {{template "wizard-hidden-fields" .}}
+
+    <h4 class="mb-1">Inbound Webhooks</h4>
+    <div class="form-group">
+      <label class="checkbox-label">
+        <input type="checkbox" id="wh_inbound_enabled">
+        <span>Enable inbound webhooks</span>
+      </label>
+    </div>
+    <div class="form-group">
+      <label>Secret</label>
+      <input type="text" id="wh_inbound_secret" class="form-input" placeholder="optional">
+    </div>
+    <div class="form-group">
+      <label>Template</label>
+      <textarea id="wh_inbound_template" class="form-textarea" rows="3" placeholder="Incoming webhook template..."></textarea>
+    </div>
+
+    <h4 class="mb-1" style="margin-top: 16px;">Outbound Endpoints</h4>
+    <div id="outbound-list"></div>
+    <button type="button" class="btn btn-sm btn-secondary" onclick="addOutboundEndpoint()">+ Add Endpoint</button>
+
+    <h4 class="mb-1" style="margin-top: 16px;">REST API Endpoints</h4>
+    <div id="rest-list"></div>
+    <button type="button" class="btn btn-sm btn-secondary" onclick="addRestEndpoint()">+ Add Endpoint</button>
+
+    <div class="wizard-actions">
+      <button type="button" class="btn btn-secondary" onclick="revertSection(this)">Revert</button>
+      <div>
+        <button type="submit" class="btn btn-secondary" hx-post="/agents/new/step6" hx-target="#wizard-content" hx-swap="innerHTML" hx-include="closest form">Back</button>
+        <button type="submit" class="btn btn-primary" hx-post="/agents/new/step8" hx-target="#wizard-content" hx-swap="innerHTML" hx-include="closest form">Next: Scheduling</button>
+      </div>
+    </div>
+  </div>
+</form>
+{{end}}
+
+{{define "wizard-step8"}}
+<form>
+  {{template "wizard-steps" (dict "Step" 8 "Context" .)}}
+  <div class="wizard-content">
+    <h3 class="mb-2">Scheduling</h3>
+    {{template "wizard-hidden-fields" .}}
+
+    <h4 class="mb-1">Scheduled Tasks</h4>
+      <div class="form-group">
+        <label>Task Name</label>
+        <input type="text" id="draft_name" class="form-input" placeholder="Morning brief">
+      </div>
+      <div class="form-group">
+        <label>Cron Expression</label>
+        <input type="text" id="draft_cron" name="cron_expr" class="form-input" placeholder="30 7 * * 1-5" hx-get="/schedules/preview" hx-trigger="input changed delay:300ms" hx-target="#cron-preview" hx-include="#draft_cron">
+        <div id="cron-preview" style="margin-top:4px; font-size:12px; color: var(--text-muted);"></div>
+      </div>
+      <div class="form-group">
+        <label>Message</label>
+        <textarea id="draft_message" rows="3" class="form-textarea" placeholder="Send a morning summary..."></textarea>
+      </div>
+      <div class="form-group">
+        <label>Channel</label>
+        <input type="text" id="draft_channel" class="form-input" placeholder="optional channel">
+      </div>
+      <button type="button" class="btn btn-sm btn-secondary" onclick="addDraftSchedule()">Add Draft</button>
+      <ul id="draft-list" style="list-style:none; padding:0; margin:8px 0 0 0;"></ul>
+
+    <h4 class="mb-1" style="margin-top: 16px;">Heartbeat</h4>
+    <div class="form-group">
+      <label class="checkbox-label">
+        <input type="checkbox" name="heartbeat_enabled" value="true" {{if eq .HeartbeatEnabled "true"}}checked{{end}}>
+        <span>Enable Heartbeat</span>
+      </label>
+    </div>
+    <div class="form-group">
+      <label>Interval</label>
+      <select name="heartbeat_interval" class="form-input">
+        <option value="15m">Every 15 minutes</option>
+        <option value="30m">Every 30 minutes</option>
+        <option value="1h">Every hour</option>
+        <option value="2h">Every 2 hours</option>
+        <option value="4h">Every 4 hours</option>
+        <option value="8h">3x daily</option>
+        <option value="daily">Once daily</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label>Heartbeat Prompt</label>
+      <textarea name="heartbeat_prompt" rows="4" class="form-textarea">{{.HeartbeatPrompt}}</textarea>
+    </div>
+    <div class="form-group">
+      <label>Quiet Hours</label>
+      <input type="text" name="heartbeat_quiet_hours" class="form-input" placeholder="22:00-07:00" value="{{.HeartbeatQuietHours}}">
+    </div>
+
+    <div class="wizard-actions">
+      <button type="button" class="btn btn-secondary" onclick="revertSection(this)">Revert</button>
+      <div>
+        <button type="submit" class="btn btn-secondary" hx-post="/agents/new/step7" hx-target="#wizard-content" hx-swap="innerHTML" hx-include="closest form">Back</button>
+        <button type="submit" class="btn btn-primary" hx-post="/agents/new/step9" hx-target="#wizard-content" hx-swap="innerHTML" hx-include="closest form">Next: Limits &amp; Safety</button>
+      </div>
+    </div>
+  </div>
+</form>
+{{end}}
+
+{{define "wizard-step9"}}
+<form>
+  {{template "wizard-steps" (dict "Step" 9 "Context" .)}}
+  <div class="wizard-content">
+    <h3 class="mb-2">Limits &amp; Safety</h3>
+    {{template "wizard-hidden-fields" .}}
+
+    <h4 class="mb-1">Spending Limits (Global)</h4>
+    <div class="form-group">
+      <label for="max_tokens_per_day">Max Tokens Per Day</label>
+      <input type="number" id="max_tokens_per_day" name="max_tokens_per_day" class="form-input" value="{{.MaxTokensPerDay}}" data-field="max_tokens_per_day">
+    </div>
+    <div class="form-group">
+      <label for="max_tokens_per_month">Max Tokens Per Month</label>
+      <input type="number" id="max_tokens_per_month" name="max_tokens_per_month" class="form-input" value="{{.MaxTokensPerMonth}}" data-field="max_tokens_per_month">
+    </div>
+    <div class="form-group">
+      <label for="max_spend_per_day">Max Spend Per Day (USD)</label>
+      <input type="number" step="0.01" id="max_spend_per_day" name="max_spend_per_day" class="form-input" value="{{.MaxSpendPerDay}}" data-field="max_spend_per_day">
+    </div>
+    <div class="form-group">
+      <label for="max_spend_per_month">Max Spend Per Month (USD)</label>
+      <input type="number" step="0.01" id="max_spend_per_month" name="max_spend_per_month" class="form-input" value="{{.MaxSpendPerMonth}}" data-field="max_spend_per_month">
+    </div>
+
+    <div class="form-group">
+      <label for="history_limit">History Limit</label>
+      <input type="number" id="history_limit" name="history_limit" class="form-input" value="{{.HistoryLimit}}">
+    </div>
+    <div class="form-group">
+      <label for="memory_limit">Memory Limit</label>
+      <input type="number" id="memory_limit" name="memory_limit" class="form-input" value="{{.MemoryLimit}}">
+    </div>
+    <div class="form-group">
+      <label class="checkbox-label">
+        <input type="checkbox" name="auto_extract_memories" value="true" {{if eq .AutoExtractMemories "true"}}checked{{end}}>
+        <span>Auto-extract memories</span>
+      </label>
+    </div>
+    <div class="form-group">
+      <label class="checkbox-label">
+        <input type="checkbox" name="timestamp_messages" value="true" {{if eq .TimestampMessages "true"}}checked{{end}}>
+        <span>Timestamp messages</span>
+      </label>
+      <small class="form-hint">Prepend current UTC time to user messages so the agent knows when messages arrive.</small>
+    </div>
+
+    <h4 class="mb-1" style="margin-top: 16px;">Context Budget</h4>
+    <div class="form-group">
+      <label for="max_total_tokens">Max Total Tokens</label>
+      <input type="number" id="max_total_tokens" name="max_total_tokens" class="form-input" value="{{.MaxTotalTokens}}">
+    </div>
+    <div class="form-group">
+      <label for="soul_identity_pct">Soul/Identity %</label>
+      <input type="number" id="soul_identity_pct" name="soul_identity_pct" class="form-input" value="{{.SoulIdentityPct}}">
+    </div>
+    <div class="form-group">
+      <label for="skills_pct">Skills %</label>
+      <input type="number" id="skills_pct" name="skills_pct" class="form-input" value="{{.SkillsPct}}">
+    </div>
+    <div class="form-group">
+      <label for="memories_pct">Memories %</label>
+      <input type="number" id="memories_pct" name="memories_pct" class="form-input" value="{{.MemoriesPct}}">
+    </div>
+    <div class="form-group">
+      <label for="history_pct">History %</label>
+      <input type="number" id="history_pct" name="history_pct" class="form-input" value="{{.HistoryPct}}">
+    </div>
+
+    <h4 class="mb-1" style="margin-top: 16px;">Circuit Breaker</h4>
+    <div class="form-group">
+      <label class="checkbox-label">
+        <input type="checkbox" name="circuit_breaker_enabled" value="true" {{if ne .CircuitBreakerEnabled "false"}}checked{{end}}>
+        <span>Enable Circuit Breaker</span>
+      </label>
+    </div>
+    <div class="form-group">
+      <label>Error Threshold</label>
+      <input type="number" name="circuit_breaker_error_threshold" class="form-input" value="{{.BreakerConfig.ErrorThreshold}}">
+    </div>
+    <div class="form-group">
+      <label>Error Window (minutes)</label>
+      <input type="number" name="circuit_breaker_error_window_minutes" class="form-input" value="{{.BreakerConfig.ErrorWindowMinutes}}">
+    </div>
+    <div class="form-group">
+      <label>Spending Velocity %</label>
+      <input type="number" name="circuit_breaker_spending_velocity_pct" class="form-input" value="{{.BreakerConfig.SpendingVelocityPct}}">
+    </div>
+    <div class="form-group">
+      <label>Spending Window (minutes)</label>
+      <input type="number" name="circuit_breaker_spending_window_minutes" class="form-input" value="{{.BreakerConfig.SpendingWindowMinutes}}">
+    </div>
+    <div class="form-group">
+      <label>Action Rate Per Minute</label>
+      <input type="number" name="circuit_breaker_action_rate_per_minute" class="form-input" value="{{.BreakerConfig.ActionRatePerMinute}}">
+    </div>
+    <div class="form-group">
+      <label>Destructive Limit</label>
+      <input type="number" name="circuit_breaker_destructive_limit" class="form-input" value="{{.BreakerConfig.DestructiveLimit}}">
+    </div>
+    <div class="form-group">
+      <label>Loop Identical Count</label>
+      <input type="number" name="circuit_breaker_loop_identical_count" class="form-input" value="{{.BreakerConfig.LoopIdenticalCount}}">
+    </div>
+
+    <div class="wizard-actions">
+      <button type="button" class="btn btn-secondary" onclick="revertSection(this)">Revert</button>
+      <div>
+        <button type="submit" class="btn btn-secondary" hx-post="/agents/new/step8" hx-target="#wizard-content" hx-swap="innerHTML" hx-include="closest form">Back</button>
+        <button type="submit" class="btn btn-primary" hx-post="/agents/new/step10" hx-target="#wizard-content" hx-swap="innerHTML" hx-include="closest form">Next: Team</button>
+      </div>
+    </div>
+  </div>
+</form>
+{{end}}
+
+{{define "wizard-step10"}}
+<form>
+  {{template "wizard-steps" (dict "Step" 10 "Context" .)}}
+  <div class="wizard-content">
+    <h3 class="mb-2">Team</h3>
+    {{if .Error}}<div class="alert alert-error">{{.Error}}</div>{{end}}
+    {{template "wizard-hidden-fields" .}}
+
+    {{if .Team}}
+      <p><strong>{{.Team.Name}}</strong></p>
+      <p style="color: var(--text-secondary);">{{.Team.Description}}</p>
+      {{if .Team.SharedContext}}
+      <div class="form-group">
+        <label>Shared Context</label>
+        <textarea class="form-textarea" rows="6" disabled>{{.Team.SharedContext}}</textarea>
+      </div>
+      {{end}}
+    {{else}}
+      <p style="color: var(--text-muted);">No team membership for this agent.</p>
+    {{end}}
+
+    <div class="wizard-actions">
+      <button type="button" class="btn btn-secondary" onclick="revertSection(this)">Revert</button>
+      <div>
+        {{if and .AdvancedAllowed .ShowAdvanced}}
+        <button type="submit" class="btn btn-secondary" hx-post="/agents/new/step9" hx-target="#wizard-content" hx-swap="innerHTML" hx-include="closest form">Back</button>
+        {{else}}
+        <button type="submit" class="btn btn-secondary" hx-post="/agents/new/step5" hx-target="#wizard-content" hx-swap="innerHTML" hx-include="closest form">Back</button>
+        {{end}}
+        <button type="submit" class="btn btn-primary" hx-post="/agents" hx-target="#wizard-content" hx-swap="innerHTML" hx-include="closest form">Create Agent</button>
+      </div>
+    </div>
+  </div>
+</form>
+{{end}}
+
+{{define "cron-preview"}}
+{{if .Error}}
+<span style="color: var(--danger);">Invalid cron expression</span>
+{{else if .Preview}}
+<span style="color: var(--text-muted);">{{.Preview}}</span>
+{{end}}
+{{end}}
+

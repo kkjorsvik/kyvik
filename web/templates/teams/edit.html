@@ -1,0 +1,80 @@
+{{define "team-edit"}}
+<div class="page-header">
+  <div>
+    <h2>Edit Team</h2>
+    <p>Update membership, leadership, and communication settings.</p>
+  </div>
+  <a href="/teams/{{.Team.ID}}" class="btn btn-secondary">Back to Team</a>
+</div>
+
+<div class="card">
+  <div class="card-body">
+    <form method="POST" action="/teams/{{.Team.ID}}/edit">
+      <div class="form-group">
+        <label for="name">Name</label>
+        <input id="name" name="name" type="text" class="form-input" required value="{{.Team.Name}}" />
+      </div>
+
+      <div class="form-group mt-2">
+        <label for="description">Description</label>
+        <textarea id="description" name="description" rows="3" class="form-textarea">{{.Team.Description}}</textarea>
+      </div>
+
+      <div class="form-group mt-2">
+        <label for="leader_id">Leader</label>
+        <select id="leader_id" name="leader_id" class="form-select" required>
+          {{range .EligibleAgents}}
+          <option value="{{.ID}}" {{if eq .ID $.Team.LeaderID}}selected{{end}}>{{.Name}} ({{.ID}})</option>
+          {{end}}
+        </select>
+        <small style="color: var(--text-muted);">Leader must be a member of the team.</small>
+      </div>
+
+      <div class="form-group mt-2">
+        <label>Members</label>
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 8px; max-height: 280px; overflow: auto; padding: 8px; border: 1px solid var(--border-color); border-radius: 8px;">
+          {{range .EligibleAgents}}
+          <label style="display: flex; align-items: center; gap: 8px; margin: 0;">
+            <input type="checkbox" name="member_ids" value="{{.ID}}" {{if index $.MemberSet .ID}}checked{{end}} />
+            <span>{{.Name}} <span style="color: var(--text-muted);">({{.ID}})</span></span>
+          </label>
+          {{end}}
+        </div>
+      </div>
+
+      <div class="form-group mt-2">
+        <label>Communication Mode</label>
+        <label style="display: block; margin: 6px 0;">
+          <input type="radio" name="communication" value="leader-mediated" {{if eq .Team.Communication "leader-mediated"}}checked{{end}} />
+          <strong>Leader-mediated</strong> — non-leaders can only message the leader.
+        </label>
+        <label style="display: block; margin: 6px 0;">
+          <input type="radio" name="communication" value="open" {{if eq .Team.Communication "open"}}checked{{end}} />
+          <strong>Open</strong> — all members can message each other directly.
+        </label>
+        {{if eq .Team.Communication "open"}}
+        <small style="color: var(--warning);">Switching to leader-mediated will restrict member-to-member messaging.</small>
+        {{end}}
+      </div>
+
+      <div class="form-group mt-2">
+        <label>Communication Status</label>
+        <label style="display: block; margin: 6px 0;">
+          <input type="checkbox" name="active" {{if .Team.Active}}checked{{end}} />
+          <strong>Active</strong> — when unchecked, team communication is paused.
+        </label>
+      </div>
+
+      <div class="form-group mt-2">
+        <label for="shared_context">Shared Context</label>
+        <textarea id="shared_context" name="shared_context" rows="5" class="form-textarea">{{.Team.SharedContext}}</textarea>
+      </div>
+
+      <div style="display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px;">
+        <a href="/teams/{{.Team.ID}}" class="btn btn-secondary">Cancel</a>
+        <button type="submit" class="btn btn-primary">Save Team</button>
+      </div>
+    </form>
+  </div>
+</div>
+{{end}}

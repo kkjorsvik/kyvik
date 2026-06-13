@@ -1,0 +1,137 @@
+{{define "templates-edit"}}
+<div class="page-header">
+  <div>
+    <h2>Edit Template</h2>
+    <p>{{.Template.Name}}</p>
+  </div>
+  <a href="/templates" class="btn btn-secondary">Back to Templates</a>
+</div>
+
+<div class="card">
+  <div class="card-header">
+    <h3>Template Settings</h3>
+  </div>
+  <div class="card-body">
+    <form method="POST" action="/templates/{{.Template.ID}}/edit">
+      <div class="form-group">
+        <label for="edit-name">Name *</label>
+        <input type="text" id="edit-name" name="name" class="form-input" required value="{{.Template.Name}}">
+      </div>
+      <div class="form-group">
+        <label for="edit-desc">Description</label>
+        <input type="text" id="edit-desc" name="description" class="form-input" value="{{.Template.Description}}">
+      </div>
+      <div class="form-group">
+        <label for="edit-group">Group</label>
+        <select id="edit-group" name="group_id" class="form-input">
+          <option value="">Any group</option>
+          {{range .Groups}}
+          <option value="{{.ID}}" {{if eq .ID $.Template.GroupID}}selected{{end}}>{{.Name}}</option>
+          {{end}}
+        </select>
+      </div>
+
+      <details>
+        <summary style="cursor: pointer; font-weight: 600; margin-bottom: 8px;">Identity &amp; Behavior</summary>
+        <div style="padding: 8px 0;">
+          <div class="form-group">
+            <label for="edit-system-prompt">System Prompt</label>
+            <textarea id="edit-system-prompt" name="system_prompt" class="form-textarea" rows="4" placeholder="Instructions for the agent...">{{.Config.SystemPrompt}}</textarea>
+          </div>
+          <div class="form-group">
+            <label for="edit-soul">Soul Content</label>
+            <textarea id="edit-soul" name="soul_content" class="form-textarea" rows="3" placeholder="Agent personality and values...">{{.Config.SoulContent}}</textarea>
+          </div>
+          <div class="form-group">
+            <label for="edit-identity">Identity Content</label>
+            <textarea id="edit-identity" name="identity_content" class="form-textarea" rows="3" placeholder="Agent identity details...">{{.Config.IdentityContent}}</textarea>
+          </div>
+        </div>
+      </details>
+
+      <details>
+        <summary style="cursor: pointer; font-weight: 600; margin-bottom: 8px;">Model</summary>
+        <div style="padding: 8px 0;">
+          <div class="form-group">
+            <label for="edit-provider">Provider</label>
+            <select id="edit-provider" name="provider" class="form-input">
+              <option value="">— not set —</option>
+              {{range .Providers}}
+              <option value="{{.Name}}" {{if eq .Name $.Config.ModelConfig.Provider}}selected{{end}}>{{.Name}}</option>
+              {{end}}
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="edit-model">Model</label>
+            <input type="text" id="edit-model" name="model" class="form-input" value="{{.Config.ModelConfig.Model}}" placeholder="e.g. deepseek/deepseek-chat">
+          </div>
+        </div>
+      </details>
+
+      <details>
+        <summary style="cursor: pointer; font-weight: 600; margin-bottom: 8px;">Permissions</summary>
+        <div style="padding: 8px 0;">
+          <div class="form-group">
+            <label for="edit-template">Permission Tier</label>
+            <select id="edit-template" name="template" class="form-input">
+              <option value="">— not set —</option>
+              <option value="reader" {{if eq .Config.Template "reader"}}selected{{end}}>Reader</option>
+              <option value="worker" {{if eq .Config.Template "worker"}}selected{{end}}>Worker</option>
+              <option value="operator" {{if eq .Config.Template "operator"}}selected{{end}}>Operator</option>
+              <option value="admin" {{if eq .Config.Template "admin"}}selected{{end}}>Admin</option>
+            </select>
+          </div>
+        </div>
+      </details>
+
+      <details>
+        <summary style="cursor: pointer; font-weight: 600; margin-bottom: 8px;">Limits</summary>
+        <div style="padding: 8px 0;">
+          <div class="form-group">
+            <label for="edit-max-tokens-day">Max Tokens / Day</label>
+            <input type="number" id="edit-max-tokens-day" name="max_tokens_per_day" class="form-input" value="{{.Config.Limits.MaxTokensPerDay}}" min="0">
+          </div>
+          <div class="form-group">
+            <label for="edit-max-tokens-month">Max Tokens / Month</label>
+            <input type="number" id="edit-max-tokens-month" name="max_tokens_per_month" class="form-input" value="{{.Config.Limits.MaxTokensPerMonth}}" min="0">
+          </div>
+          <div class="form-group">
+            <label for="edit-max-spend-day">Max Spend / Day ($)</label>
+            <input type="number" id="edit-max-spend-day" name="max_spend_per_day" class="form-input" value="{{printf "%.2f" .Config.Limits.MaxSpendPerDay}}" min="0" step="0.01">
+          </div>
+          <div class="form-group">
+            <label for="edit-max-spend-month">Max Spend / Month ($)</label>
+            <input type="number" id="edit-max-spend-month" name="max_spend_per_month" class="form-input" value="{{printf "%.2f" .Config.Limits.MaxSpendPerMonth}}" min="0" step="0.01">
+          </div>
+          <div class="form-group">
+            <label for="edit-history-limit">History Limit</label>
+            <input type="number" id="edit-history-limit" name="history_limit" class="form-input" value="{{.Config.HistoryLimit}}" min="0">
+          </div>
+          <div class="form-group">
+            <label for="edit-memory-limit">Memory Limit</label>
+            <input type="number" id="edit-memory-limit" name="memory_limit" class="form-input" value="{{.Config.MemoryLimit}}" min="0">
+          </div>
+        </div>
+      </details>
+
+      <details>
+        <summary style="cursor: pointer; font-weight: 600; margin-bottom: 8px;">Constraints</summary>
+        <div style="padding: 8px 0;">
+          <div class="form-group">
+            <label for="edit-locked">Locked Fields (JSON array)</label>
+            <textarea id="edit-locked" name="locked_fields" class="form-textarea" rows="3" placeholder='["system_prompt", "template"]'>{{.LockedJSON}}</textarea>
+            <small style="color: var(--text-muted);">Fields that cannot be changed when creating an agent from this template.</small>
+          </div>
+          <div class="form-group">
+            <label for="edit-constrained">Constrained Fields (JSON object)</label>
+            <textarea id="edit-constrained" name="constrained_fields" class="form-textarea" rows="4" placeholder='{"max_tokens_per_day": {"min": 0, "max": 100000}}'>{{.ConstrainedJSON}}</textarea>
+            <small style="color: var(--text-muted);">Field constraints with min/max or allowed options.</small>
+          </div>
+        </div>
+      </details>
+
+      <button type="submit" class="btn btn-primary" style="margin-top: 12px;">Save Changes</button>
+    </form>
+  </div>
+</div>
+{{end}}

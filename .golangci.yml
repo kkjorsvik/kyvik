@@ -1,0 +1,42 @@
+run:
+  timeout: 5m
+
+linters:
+  disable:
+    - errcheck  # too many false positives on intentional fire-and-forget calls; enable with nolint annotations later
+  enable:
+    - govet
+    - staticcheck
+    - unused
+    - gosec
+    - ineffassign
+    - typecheck
+    - gosimple
+
+linters-settings:
+  gosec:
+    excludes:
+      - G101  # false positives on test DSNs and socket names
+      - G112  # Slowloris — not relevant for internal/test HTTP servers
+      - G115  # integer overflow int64->uint64 — false positive on file sizes
+      - G201  # SQL formatting — we use quoteIdent helpers for safety
+      - G204  # subprocess launch — intentional in sandbox/exec tooling
+      - G306  # WriteFile 0o644 — appropriate for non-secret config/skill files
+      - G402  # TLS MinVersion — only in test code
+  unused:
+    field-writes-are-uses: true
+    exported-fields-are-used: true
+
+issues:
+  exclude-use-default: true
+  max-issues-per-linter: 50
+  max-same-issues: 10
+  exclude-rules:
+    - path: _test\.go
+      linters:
+        - gosec
+        - unused
+    - path: web/handlers/
+      linters:
+        - gosec
+      text: "G203"

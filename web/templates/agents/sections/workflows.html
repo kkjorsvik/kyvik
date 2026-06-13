@@ -1,0 +1,258 @@
+{{define "card-workflows"}}
+<div id="card-workflows">
+<div class="card mt-2">
+  <div class="card-header">
+    <h3>Workflows</h3>
+  </div>
+  <div id="workflow-list">
+    {{if .Workflows}}
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Name</th>
+            <th>Steps</th>
+            <th>Status</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {{range .Workflows}}
+          <tr>
+            <td>
+              <a href="/agents/{{$.Agent.ID}}/workflows/{{.ID}}">{{.Name}}</a>
+              {{if .Description}}<br><span style="color: var(--text-secondary); font-size: 12px;">{{.Description}}</span>{{end}}
+            </td>
+            <td><span class="text-mono">{{len .Steps}}</span></td>
+            <td>
+              {{if .Enabled}}<span class="badge badge-running">enabled</span>
+              {{else}}<span class="badge badge-stopped">disabled</span>{{end}}
+            </td>
+            <td>
+              <a href="/agents/{{$.Agent.ID}}/workflows/{{.ID}}" class="btn btn-sm btn-secondary">View</a>
+            </td>
+          </tr>
+          {{end}}
+        </tbody>
+      </table>
+    </div>
+    {{else}}
+    <div class="card-body">
+      <p style="color: var(--text-muted);">No workflows defined.</p>
+    </div>
+    {{end}}
+  </div>
+</div>
+</div>
+{{end}}
+
+{{define "workflow-detail"}}
+<div class="page-header">
+  <div>
+    <h2>{{.Workflow.Name}}</h2>
+    {{if .Workflow.Description}}<p>{{.Workflow.Description}}</p>{{end}}
+    <p style="color: var(--text-secondary); font-size: 13px;">
+      Workflow for <a href="/agents/{{.Agent.ID}}">{{.Agent.Name}}</a>
+    </p>
+  </div>
+  <div style="display: flex; gap: 8px; align-items: center;">
+    <button class="btn btn-sm btn-secondary"
+            hx-get="/agents/{{.Agent.ID}}/workflows/{{.Workflow.ID}}/edit"
+            hx-target="body" hx-swap="beforeend">Edit</button>
+    <form style="display: inline;" hx-post="/agents/{{.Agent.ID}}/workflows/{{.Workflow.ID}}/toggle">
+      <button type="submit" class="btn btn-sm btn-secondary">{{if .Workflow.Enabled}}Disable{{else}}Enable{{end}}</button>
+    </form>
+    <button class="btn btn-sm btn-primary"
+            onclick="document.getElementById('workflow-execute-modal').showModal()">Execute</button>
+    <form style="display: inline;" hx-delete="/agents/{{.Agent.ID}}/workflows/{{.Workflow.ID}}" hx-confirm="Delete workflow '{{.Workflow.Name}}'? This cannot be undone.">
+      <button type="submit" class="btn btn-sm btn-danger">Delete</button>
+    </form>
+  </div>
+</div>
+
+<!-- Status -->
+<div class="stat-grid">
+  <div class="stat-card">
+    <div class="stat-label">Status</div>
+    <div class="stat-value">
+      {{if .Workflow.Enabled}}<span class="badge badge-running">enabled</span>
+      {{else}}<span class="badge badge-stopped">disabled</span>{{end}}
+    </div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">Steps</div>
+    <div class="stat-value">{{len .Workflow.Steps}}</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">Created</div>
+    <div class="stat-value" style="font-size: 14px;">{{localTime .Workflow.CreatedAt "Jan 02 15:04"}}</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">Updated</div>
+    <div class="stat-value" style="font-size: 14px;">{{localTime .Workflow.UpdatedAt "Jan 02 15:04"}}</div>
+  </div>
+</div>
+
+<!-- Steps Definition -->
+<div class="card mt-2">
+  <div class="card-header">
+    <h3>Steps</h3>
+  </div>
+  {{if .Workflow.Steps}}
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>#</th>
+          <th>Name</th>
+          <th>Tool.Action</th>
+          <th>Save As</th>
+          <th>On Error</th>
+        </tr>
+      </thead>
+      <tbody>
+        {{range $i, $step := .Workflow.Steps}}
+        <tr>
+          <td>{{$i}}</td>
+          <td>{{$step.Name}}</td>
+          <td><span class="text-mono">{{$step.Tool}}.{{$step.Action}}</span></td>
+          <td>{{if $step.SaveAs}}<span class="text-mono">{{$step.SaveAs}}</span>{{else}}<span style="color: var(--text-muted);">-</span>{{end}}</td>
+          <td>{{if $step.OnError}}<span class="text-mono">{{$step.OnError}}</span>{{else}}<span class="text-mono">stop</span>{{end}}</td>
+        </tr>
+        {{end}}
+      </tbody>
+    </table>
+  </div>
+  {{else}}
+  <div class="card-body">
+    <p style="color: var(--text-muted);">No steps defined.</p>
+  </div>
+  {{end}}
+</div>
+
+<!-- Execution History -->
+<div class="card mt-2">
+  <div class="card-header">
+    <h3>Execution History</h3>
+  </div>
+  {{if .Runs}}
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Started</th>
+          <th>Status</th>
+          <th>Duration</th>
+          <th>Error</th>
+        </tr>
+      </thead>
+      <tbody>
+        {{range .Runs}}
+        <tr>
+          <td style="white-space: nowrap; font-size: 12px;">{{localTime .StartedAt "Jan 02 15:04:05"}}</td>
+          <td>
+            <span class="badge {{if eq .Status "completed"}}badge-running{{else if eq .Status "failed"}}badge-error{{else}}badge-muted{{end}}">{{.Status}}</span>
+          </td>
+          <td><span class="text-mono">{{.DurationMs}}ms</span></td>
+          <td>{{if .Error}}<span style="color: var(--error); font-size: 12px;">{{truncate .Error 80}}</span>{{else}}<span style="color: var(--text-muted);">-</span>{{end}}</td>
+        </tr>
+        {{end}}
+      </tbody>
+    </table>
+  </div>
+  {{else}}
+  <div class="card-body">
+    <p style="color: var(--text-muted);">No executions recorded yet.</p>
+  </div>
+  {{end}}
+</div>
+
+<!-- Execute Modal -->
+<dialog id="workflow-execute-modal" class="memory-dialog">
+  <div class="card" style="min-width: 320px; max-width: 480px;">
+    <form hx-post="/agents/{{.Agent.ID}}/workflows/{{.Workflow.ID}}/execute">
+      <div class="card-header"><h3>Execute Workflow</h3></div>
+      <div class="card-body">
+        <p style="color: var(--text-secondary); margin-bottom: 12px;">
+          Manually trigger <strong>{{.Workflow.Name}}</strong>.
+        </p>
+        <div class="form-group">
+          <label for="execute-vars">Input Variables (JSON, optional)</label>
+          <textarea id="execute-vars" name="vars" rows="5" class="form-textarea"
+                    style="font-family: var(--font-mono, monospace); font-size: 13px;"
+                    placeholder='{"key": "value"}'></textarea>
+          <small style="color: var(--text-muted);">JSON object of variables available to workflow steps via {{"{{"}}var_name{{"}}"}} syntax.</small>
+        </div>
+      </div>
+      <div class="card-actions" style="justify-content: flex-end;">
+        <button type="button" class="btn btn-secondary" onclick="this.closest('dialog').close()">Cancel</button>
+        <button type="submit" class="btn btn-primary">Execute</button>
+      </div>
+    </form>
+  </div>
+</dialog>
+
+<!-- Script to open edit dialog when appended via HTMX -->
+<script>
+document.body.addEventListener('htmx:afterSwap', function(e) {
+  if (e.detail.target === document.body) {
+    var dialog = document.body.querySelector('dialog.edit-section-dialog:not([open])');
+    if (dialog) dialog.showModal();
+  }
+});
+</script>
+{{end}}
+
+{{define "workflow-edit-modal"}}
+<dialog class="edit-section-dialog">
+  <form hx-post="/agents/{{.AgentID}}/workflows/{{.Workflow.ID}}/edit"
+        hx-swap="none">
+    <div class="dialog-header">
+      <h3>Edit Workflow</h3>
+      <button type="button" class="btn-edit-section" onclick="this.closest('dialog').close()" title="Close">&times;</button>
+    </div>
+    <div class="dialog-body">
+      <div class="form-group">
+        <label for="edit-wf-name">Name</label>
+        <input type="text" id="edit-wf-name" name="name" class="form-input" value="{{.Workflow.Name}}" required>
+      </div>
+      <div class="form-group">
+        <label for="edit-wf-description">Description</label>
+        <input type="text" id="edit-wf-description" name="description" class="form-input" value="{{.Workflow.Description}}" placeholder="Optional description">
+      </div>
+      <div class="form-group">
+        <label style="display: flex; align-items: center; gap: 6px; cursor: pointer;">
+          <input type="checkbox" name="enabled" value="true" {{if .Workflow.Enabled}}checked{{end}}>
+          Enabled
+        </label>
+      </div>
+      <div class="form-group">
+        <label for="edit-wf-steps-json">Steps (JSON array)</label>
+        <textarea id="edit-wf-steps-json" name="steps_json" rows="14" class="form-textarea"
+                  style="font-family: var(--font-mono, monospace); font-size: 13px;"
+                  placeholder='[
+  {
+    "name": "step-1",
+    "tool": "file",
+    "action": "read",
+    "params": {"path": "/tmp/input.txt"},
+    "save_as": "file_content",
+    "on_error": "stop"
+  }
+]'>{{if .Workflow.Steps}}{{marshalJSON .Workflow.Steps}}{{end}}</textarea>
+        <small style="color: var(--text-muted);">
+          Each step: <code>name</code> = unique step name,
+          <code>tool</code>/<code>action</code> = KTP tool call,
+          <code>params</code> = tool parameters (supports <code>{{"{{"}}var_name{{"}}"}}</code> interpolation),
+          <code>save_as</code> = store result as variable (optional),
+          <code>on_error</code> = "stop" or "continue" (default "stop").
+        </small>
+      </div>
+    </div>
+    <div class="dialog-footer">
+      <button type="button" class="btn btn-secondary" onclick="this.closest('dialog').close()">Cancel</button>
+      <button type="submit" class="btn btn-primary">Save</button>
+    </div>
+  </form>
+</dialog>
+{{end}}

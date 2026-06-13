@@ -1,0 +1,92 @@
+name: sentry
+display_name: Sentry
+description: Error tracking with Sentry — list and resolve issues, view events and project details.
+version: 1.0.0
+category: developer-tools
+icon: sentry
+auth:
+  type: bearer
+  secret_ref: sentry_auth_token
+  setup_url: https://sentry.io/settings/account/api/auth-tokens/
+  instructions: |
+    1. Go to https://sentry.io/settings/account/api/auth-tokens/
+    2. Create a new auth token with scopes: project:read, event:read, issue:read, issue:write
+    3. Copy the generated token
+
+variables:
+  - name: organization
+    description: Your Sentry organization slug
+    required: true
+    example: my-org
+
+endpoints:
+  - name: sentry_list_issues
+    description: List unresolved issues for a project
+    method: GET
+    url: "https://sentry.io/api/0/projects/{{.organization}}/{{.project}}/issues/"
+    query_params:
+      query: "{{or .query \"is:unresolved\"}}"
+      limit: "{{or .limit 25}}"
+    parameters:
+      - name: project
+        description: Sentry project slug
+        required: true
+      - name: query
+        description: Search query
+        required: false
+        default: "is:unresolved"
+      - name: limit
+        description: Max issues to return
+        required: false
+        type: int
+        default: "25"
+    response_template: |
+      {{if .data}}Issues ({{len .data}}):
+      {{range .data}}- [{{.shortId}}] {{.title}} ({{.count}} events, last: {{.lastSeen}})
+      {{end}}{{end}}
+    rate_limit_rpm: 20
+    timeout_seconds: 15
+
+  - name: sentry_resolve_issue
+    description: Resolve a Sentry issue
+    method: PUT
+    url: "https://sentry.io/api/0/organizations/{{.organization}}/issues/{{.issue_id}}/"
+    headers:
+      Content-Type: application/json
+    body_template: |
+      {"status":"resolved"}
+    parameters:
+      - name: issue_id
+        description: Sentry issue ID to resolve
+        required: true
+    rate_limit_rpm: 20
+    timeout_seconds: 10
+
+  - name: sentry_issue_events
+    description: List recent events for an issue
+    method: GET
+    url: "https://sentry.io/api/0/organizations/{{.organization}}/issues/{{.issue_id}}/events/"
+    query_params:
+      limit: "{{or .limit 10}}"
+    parameters:
+      - name: issue_id
+        description: Sentry issue ID
+        required: true
+      - name: limit
+        description: Max events to return
+        required: false
+        type: int
+        default: "10"
+    rate_limit_rpm: 20
+    timeout_seconds: 15
+
+  - name: sentry_list_projects
+    description: List all projects in the organization
+    method: GET
+    url: "https://sentry.io/api/0/organizations/{{.organization}}/projects/"
+    response_template: |
+      {{if .data}}Projects:
+      {{range .data}}- {{.slug}} ({{.platform}}) — {{.name}}
+      {{end}}{{end}}
+    cache_ttl_seconds: 300
+    rate_limit_rpm: 10

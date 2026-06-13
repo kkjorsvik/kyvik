@@ -1,0 +1,623 @@
+{{define "agent-chat"}}
+<link rel="stylesheet" href="/static/vendor/highlight/styles/github-dark.min.css">
+<script src="/static/vendor/marked/marked.min.js" nonce="{{.Nonce}}"></script>
+<script src="/static/vendor/dompurify/purify.min.js" nonce="{{.Nonce}}"></script>
+<script src="/static/vendor/highlight/highlight.min.js" nonce="{{.Nonce}}"></script>
+<script src="/static/vendor/highlight/languages/python.min.js" nonce="{{.Nonce}}"></script>
+<script src="/static/vendor/highlight/languages/go.min.js" nonce="{{.Nonce}}"></script>
+<script src="/static/vendor/highlight/languages/bash.min.js" nonce="{{.Nonce}}"></script>
+<script src="/static/vendor/highlight/languages/sql.min.js" nonce="{{.Nonce}}"></script>
+<script src="/static/vendor/highlight/languages/yaml.min.js" nonce="{{.Nonce}}"></script>
+
+<div class="chat-layout">
+  {{/* === Sidebar === */}}
+  <div class="chat-sidebar" id="chat-sidebar">
+    <div class="chat-sidebar-header">
+      <button class="btn btn-primary btn-sm chat-new-btn"
+              hx-post="/agents/{{.Agent.ID}}/chat/new"
+              hx-target="#chat-messages"
+              hx-swap="innerHTML"
+              onclick="startNewConversation('{{.Agent.ID}}')">
+        + New Chat
+      </button>
+    </div>
+    <div class="chat-sidebar-list"
+         id="chat-sidebar-list"
+         hx-get="/agents/{{.Agent.ID}}/chat/sidebar?active={{.ActiveConvID}}"
+         hx-trigger="every 30s"
+         hx-swap="innerHTML">
+      {{template "chat-sidebar-content" .}}
+    </div>
+  </div>
+
+  {{/* === Main Chat Area === */}}
+  <div class="chat-main" id="chat-main">
+    <div class="chat-header">
+      <div class="chat-header-left">
+        <button class="btn btn-secondary btn-sm chat-sidebar-toggle" onclick="toggleChatSidebar()">&#9776;</button>
+        <h2>{{.Agent.Name}}</h2>
+        <span class="badge badge-{{.Status}}">{{.Status}}</span>
+        {{if .ActiveConv}}
+        <span class="chat-header-title" id="chat-header-title">{{.ActiveConv.Title}}</span>
+        {{end}}
+      </div>
+      <a href="/agents" class="btn btn-secondary btn-sm">Back</a>
+    </div>
+
+    <div class="chat-messages" id="chat-messages">
+      {{template "chat-messages-content" .}}
+    </div>
+
+    <div class="chat-input-wrap">
+      <div id="file-preview" class="chat-file-preview"></div>
+
+      <form class="chat-input" id="chat-form"
+            hx-post="/agents/{{.Agent.ID}}/chat/send"
+            hx-target="#chat-messages"
+            hx-swap="beforeend"
+            hx-encoding="multipart/form-data"
+            hx-on::after-request="afterSend(this, event)"
+            {{if ne .Status "running"}}hx-disabled-elt="find button"{{end}}>
+        <input type="hidden" name="conversation_id" id="conversation-id" value="{{.ActiveConvID}}" />
+        <textarea name="message"
+                  class="chat-textarea"
+                  rows="1"
+                  placeholder="{{if eq .Status "running"}}Type a message...{{else}}Agent is not running{{end}}"
+                  autocomplete="off"
+                  onkeydown="handleTextareaKey(event)"
+                  oninput="autoResizeTextarea(this)"
+                  {{if ne .Status "running"}}disabled{{end}}></textarea>
+        <label class="btn btn-secondary btn-sm chat-attach-btn" title="Attach file"
+               {{if ne .Status "running"}}style="pointer-events:none;opacity:0.5"{{end}}>
+            <input type="file" name="files" multiple accept="image/*,.pdf,.txt,.md,.csv" style="display:none"
+                   onchange="updateFilePreviews()"
+                   {{if ne .Status "running"}}disabled{{end}}>
+            +
+        </label>
+        <button type="submit" class="btn btn-primary" {{if ne .Status "running"}}disabled{{end}}>Send</button>
+      </form>
+    </div>
+
+    <div id="chat-drop-overlay" class="chat-drop-overlay">Drop files here</div>
+  </div>
+</div>
+
+<script nonce="{{.Nonce}}">
+var agentID = "{{.Agent.ID}}";
+var agentName = "{{.Agent.Name}}";
+var currentES = null;
+
+// === Markdown Rendering ===
+
+var chatRenderer = new marked.Renderer();
+chatRenderer.code = function(obj) {
+    var code = (typeof obj === 'object') ? obj.text : obj;
+    var lang = (typeof obj === 'object') ? (obj.lang || '') : (arguments[1] || '');
+    lang = lang.split(/\s/)[0] || 'text';
+    var highlighted;
+    if (hljs.getLanguage(lang)) {
+        highlighted = hljs.highlight(code, { language: lang }).value;
+    } else {
+        highlighted = hljs.highlightAuto(code).value;
+    }
+    return '<div class="chat-code-block">' +
+        '<div class="chat-code-header"><span>' + escapeHTML(lang) + '</span>' +
+        '<button class="chat-code-copy" onclick="copyCode(this)">Copy</button></div>' +
+        '<pre><code>' + highlighted + '</code></pre></div>';
+};
+
+marked.setOptions({ renderer: chatRenderer, breaks: true, gfm: true });
+
+function renderMarkdown(text) {
+    if (!text) return '';
+    var html = marked.parse(text);
+    html = DOMPurify.sanitize(html, {
+        ADD_ATTR: ['target', 'rel']
+    });
+    // Add target="_blank" to links
+    html = html.replace(/<a /g, '<a target="_blank" rel="noopener" ');
+    return html;
+}
+
+function renderAllAgentMessages() {
+    var els = document.querySelectorAll('.chat-md-content:not([data-rendered])');
+    els.forEach(function(el) {
+        var raw = el.textContent;
+        el.innerHTML = renderMarkdown(raw);
+        el.setAttribute('data-rendered', '1');
+    });
+}
+
+// === Typing Indicator ===
+
+function showTypingIndicator() {
+    removeTypingIndicator();
+    var messages = document.getElementById('chat-messages');
+    var div = document.createElement('div');
+    div.id = 'chat-typing';
+    div.className = 'chat-typing';
+    div.innerHTML = '<div class="chat-typing-dot"></div>' +
+                    '<div class="chat-typing-dot"></div>' +
+                    '<div class="chat-typing-dot"></div>';
+    messages.appendChild(div);
+    scrollChat();
+}
+
+function removeTypingIndicator() {
+    var el = document.getElementById('chat-typing');
+    if (el) el.remove();
+}
+
+// === Copy Code ===
+
+function copyCode(btn) {
+    var codeBlock = btn.closest('.chat-code-block');
+    var code = codeBlock.querySelector('code');
+    navigator.clipboard.writeText(code.textContent).then(function() {
+        var orig = btn.textContent;
+        btn.textContent = 'Copied!';
+        setTimeout(function() { btn.textContent = orig; }, 1500);
+    });
+}
+
+// === Utility ===
+
+function escapeHTML(str) {
+    var div = document.createElement('div');
+    div.appendChild(document.createTextNode(str));
+    return div.innerHTML;
+}
+
+function scrollChat() {
+    var el = document.getElementById('chat-messages');
+    el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' });
+}
+
+function toggleChatSidebar() {
+    document.getElementById('chat-sidebar').classList.toggle('open');
+}
+
+// === Textarea Auto-Resize + Enter to Submit ===
+
+function autoResizeTextarea(el) {
+    el.style.height = 'auto';
+    el.style.height = Math.min(el.scrollHeight, 160) + 'px';
+}
+
+function handleTextareaKey(event) {
+    if (event.key === 'Enter' && !event.shiftKey) {
+        event.preventDefault();
+        var form = event.target.closest('form');
+        if (form) htmx.trigger(form, 'submit');
+    }
+}
+
+// === After Send ===
+
+function afterSend(form, event) {
+    if (event && event.detail && event.detail.successful === false) {
+        return;
+    }
+    var emptyState = document.querySelector('#chat-messages .chat-empty-state');
+    if (emptyState) emptyState.remove();
+    form.reset();
+    clearFilePreviews();
+    var ta = form.querySelector('.chat-textarea');
+    if (ta) {
+        ta.style.height = 'auto';
+        ta.value = '';
+    }
+    showTypingIndicator();
+    scrollChat();
+}
+
+// === File Previews ===
+
+function getFileInput() {
+    return document.querySelector('#chat-form input[type="file"]');
+}
+
+function updateFilePreviews() {
+    var input = getFileInput();
+    var container = document.getElementById('file-preview');
+    container.innerHTML = '';
+    if (!input || !input.files || input.files.length === 0) return;
+
+    for (var i = 0; i < input.files.length; i++) {
+        var file = input.files[i];
+        var chip = document.createElement('span');
+        chip.className = 'chat-file-chip';
+
+        if (file.type && file.type.startsWith('image/')) {
+            var img = document.createElement('img');
+            img.src = URL.createObjectURL(file);
+            chip.appendChild(img);
+        }
+
+        var name = document.createElement('span');
+        name.textContent = file.name;
+        chip.appendChild(name);
+
+        var btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'chat-file-chip-remove';
+        btn.innerHTML = '&#215;';
+        btn.setAttribute('data-index', i);
+        btn.onclick = function() { removeFile(parseInt(this.getAttribute('data-index'))); };
+        chip.appendChild(btn);
+
+        container.appendChild(chip);
+    }
+}
+
+function removeFile(index) {
+    var input = getFileInput();
+    if (!input || !input.files) return;
+    var dt = new DataTransfer();
+    for (var i = 0; i < input.files.length; i++) {
+        if (i !== index) dt.items.add(input.files[i]);
+    }
+    input.files = dt.files;
+    updateFilePreviews();
+}
+
+function clearFilePreviews() {
+    var container = document.getElementById('file-preview');
+    if (container) container.innerHTML = '';
+    var input = getFileInput();
+    if (input) input.value = '';
+}
+
+// === Drag and Drop ===
+
+(function() {
+    var main = document.getElementById('chat-main');
+    if (!main) return;
+    var dragCounter = 0;
+
+    main.addEventListener('dragenter', function(e) {
+        e.preventDefault();
+        dragCounter++;
+        main.classList.add('dragging');
+    });
+
+    main.addEventListener('dragleave', function(e) {
+        e.preventDefault();
+        dragCounter--;
+        if (dragCounter <= 0) {
+            dragCounter = 0;
+            main.classList.remove('dragging');
+        }
+    });
+
+    main.addEventListener('dragover', function(e) {
+        e.preventDefault();
+    });
+
+    main.addEventListener('drop', function(e) {
+        e.preventDefault();
+        dragCounter = 0;
+        main.classList.remove('dragging');
+
+        var input = getFileInput();
+        if (!input || !e.dataTransfer || !e.dataTransfer.files.length) return;
+
+        var dt = new DataTransfer();
+        // Keep existing files
+        if (input.files) {
+            for (var i = 0; i < input.files.length; i++) {
+                dt.items.add(input.files[i]);
+            }
+        }
+        // Add dropped files
+        for (var j = 0; j < e.dataTransfer.files.length; j++) {
+            dt.items.add(e.dataTransfer.files[j]);
+        }
+        input.files = dt.files;
+        updateFilePreviews();
+    });
+})();
+
+// === SSE Connection ===
+
+// State for tracking the currently-streaming response bubble.
+var streamingBubble = null;  // the .chat-msg element being streamed into
+var streamingContent = null; // the .chat-md-content element for accumulated text
+var streamingRaw = '';       // accumulated raw markdown text
+var lastDoneConvID = null;   // conversation ID of the last completed stream
+
+function createAgentBubble() {
+    var messages = document.getElementById('chat-messages');
+
+    var row = document.createElement('div');
+    row.className = 'chat-msg-agent-row';
+
+    var avatar = document.createElement('div');
+    avatar.className = 'chat-msg-avatar';
+    avatar.textContent = agentName ? agentName.charAt(0).toUpperCase() : 'A';
+    row.appendChild(avatar);
+
+    var bubble = document.createElement('div');
+    bubble.className = 'chat-msg chat-msg-agent';
+
+    var content = document.createElement('div');
+    content.className = 'chat-msg-content chat-md-content';
+    content.setAttribute('data-rendered', '1');
+    bubble.appendChild(content);
+
+    row.appendChild(bubble);
+    messages.appendChild(row);
+
+    return { bubble: bubble, content: content };
+}
+
+function connectSSE(convID) {
+    if (currentES) {
+        currentES.close();
+    }
+    // Reset streaming state on reconnect.
+    streamingBubble = null;
+    streamingContent = null;
+    streamingRaw = '';
+    lastDoneConvID = null;
+
+    var url = '/agents/' + agentID + '/chat/stream';
+    if (convID) {
+        url += '?c=' + encodeURIComponent(convID);
+    }
+    currentES = new EventSource(url);
+
+    // --- "chunk" event: partial content delta ---
+    currentES.addEventListener('chunk', function(event) {
+        var data = JSON.parse(event.data);
+        removeTypingIndicator();
+
+        // Create the bubble on the first chunk.
+        if (!streamingBubble) {
+            var els = createAgentBubble();
+            streamingBubble = els.bubble;
+            streamingContent = els.content;
+            streamingRaw = '';
+        }
+
+        streamingRaw += data.content;
+        // Re-render accumulated markdown on each chunk.
+        streamingContent.innerHTML = renderMarkdown(streamingRaw);
+        scrollChat();
+    });
+
+    // --- "done" event: response complete ---
+    currentES.addEventListener('done', function(event) {
+        var data = JSON.parse(event.data);
+        removeTypingIndicator();
+
+        if (streamingBubble) {
+            // Finalize: do a final markdown render and add timestamp.
+            streamingContent.innerHTML = renderMarkdown(streamingRaw);
+
+            var ts = document.createElement('div');
+            ts.className = 'chat-msg-time';
+            ts.textContent = data.timestamp || '';
+            streamingBubble.appendChild(ts);
+        }
+
+        // Track that this conversation was just streamed, so we can
+        // ignore the redundant "message" event from the outbox.
+        lastDoneConvID = data.conversation_id || '';
+
+        // Reset streaming state for next response.
+        streamingBubble = null;
+        streamingContent = null;
+        streamingRaw = '';
+        scrollChat();
+    });
+
+    // --- "error" event: streaming failure ---
+    currentES.addEventListener('error', function(event) {
+        // The EventSource 'error' event also fires for reconnect attempts.
+        // Only treat events with data as backend-named stream errors.
+        if (event.data) {
+            var data = JSON.parse(event.data);
+            removeTypingIndicator();
+
+            if (streamingBubble) {
+                // Show error in the current bubble.
+                var errDiv = document.createElement('div');
+                errDiv.className = 'chat-msg-error';
+                errDiv.textContent = 'Error: ' + (data.error || 'unknown error');
+                streamingBubble.appendChild(errDiv);
+            }
+
+            streamingBubble = null;
+            streamingContent = null;
+            streamingRaw = '';
+        }
+    });
+
+    // --- "message" event: full non-streamed message (backward compat) ---
+    currentES.addEventListener('message', function(event) {
+        var data = JSON.parse(event.data);
+
+        // If we just finished streaming this conversation, ignore the
+        // redundant full message from the outbox.
+        if (lastDoneConvID && lastDoneConvID === data.conversation_id) {
+            lastDoneConvID = null;
+            return;
+        }
+
+        removeTypingIndicator();
+
+        var els = createAgentBubble();
+        els.content.innerHTML = renderMarkdown(data.content);
+
+        var ts = document.createElement('div');
+        ts.className = 'chat-msg-time';
+        ts.textContent = data.timestamp || '';
+        els.bubble.appendChild(ts);
+
+        scrollChat();
+    });
+}
+
+// === Conversation Navigation ===
+
+function switchConversation(agentID, convID) {
+    var url = '/agents/' + agentID + '/chat?c=' + encodeURIComponent(convID);
+    history.pushState(null, '', url);
+    document.getElementById('conversation-id').value = convID;
+    connectSSE(convID);
+
+    document.querySelectorAll('.chat-sidebar-entry').forEach(function(el) {
+        el.classList.remove('active');
+    });
+    var active = document.querySelector('[data-conv-id="' + convID + '"]');
+    if (active) active.classList.add('active');
+
+    document.getElementById('chat-sidebar').classList.remove('open');
+}
+
+function startNewConversation(agentID) {
+    document.getElementById('conversation-id').value = '';
+    var headerTitle = document.getElementById('chat-header-title');
+    if (headerTitle) headerTitle.textContent = '';
+    connectSSE('');
+
+    document.querySelectorAll('.chat-sidebar-entry').forEach(function(el) {
+        el.classList.remove('active');
+    });
+
+    history.pushState(null, '', '/agents/' + agentID + '/chat');
+    document.getElementById('chat-sidebar').classList.remove('open');
+}
+
+// Listen for conversation creation from HX-Trigger.
+document.body.addEventListener('conversationCreated', function(event) {
+    var detail = event.detail;
+    if (detail && detail.convID) {
+        document.getElementById('conversation-id').value = detail.convID;
+        if (detail.isNew) {
+            connectSSE(detail.convID);
+            history.replaceState(null, '', '/agents/' + agentID + '/chat?c=' + encodeURIComponent(detail.convID));
+            htmx.ajax('GET', '/agents/' + agentID + '/chat/sidebar?active=' + encodeURIComponent(detail.convID), {target: '#chat-sidebar-list', swap: 'innerHTML'});
+        }
+    }
+});
+
+// Render markdown when HTMX swaps conversation messages.
+document.body.addEventListener('htmx:afterSwap', function(event) {
+    if (event.detail.target && event.detail.target.id === 'chat-messages') {
+        renderAllAgentMessages();
+        scrollChat();
+    }
+});
+
+{{if eq .Status "running"}}
+// Initial SSE connection.
+connectSSE("{{.ActiveConvID}}");
+window.addEventListener('beforeunload', function() {
+    if (currentES) currentES.close();
+});
+{{end}}
+
+// Initial render on page load.
+renderAllAgentMessages();
+scrollChat();
+</script>
+{{end}}
+
+{{define "chat-sidebar-content"}}
+{{$agentID := ""}}
+{{if .Agent}}{{$agentID = .Agent.ID}}{{end}}
+{{$activeID := ""}}
+{{if .ActiveConvID}}{{$activeID = .ActiveConvID}}{{end}}
+{{if .Conversations}}
+  {{range .Conversations}}
+  <div class="chat-sidebar-group">
+    <div class="chat-sidebar-group-title">{{.Label}}</div>
+    {{range .Conversations}}
+    {{template "chat-sidebar-entry" dict "Conv" . "AgentID" $agentID "IsActive" (eq .ID $activeID)}}
+    {{end}}
+  </div>
+  {{end}}
+{{else}}
+  <div class="chat-sidebar-empty">No conversations yet</div>
+{{end}}
+{{end}}
+
+{{define "chat-sidebar-entry"}}
+<div class="chat-sidebar-entry {{if .IsActive}}active{{end}}"
+     data-conv-id="{{.Conv.ID}}"
+     id="conv-{{.Conv.ID}}">
+  <div class="chat-sidebar-entry-title"
+       onclick="switchConversation('{{.AgentID}}', '{{.Conv.ID}}')"
+       hx-get="/agents/{{.AgentID}}/chat/messages?c={{.Conv.ID}}"
+       hx-target="#chat-messages"
+       hx-swap="innerHTML">
+    {{.Conv.Title}}
+  </div>
+  <div class="chat-sidebar-actions">
+    <button class="chat-sidebar-action-btn"
+            title="Delete"
+            hx-post="/agents/{{.AgentID}}/chat/conversations/{{.Conv.ID}}/delete"
+            hx-target="#conv-{{.Conv.ID}}"
+            hx-swap="delete"
+            hx-confirm="Delete this conversation?">&#215;</button>
+  </div>
+</div>
+{{end}}
+
+{{define "chat-messages-content"}}
+{{$agentName := ""}}
+{{if .AgentName}}{{$agentName = .AgentName}}{{else if .Agent}}{{$agentName = .Agent.Name}}{{end}}
+{{if .Messages}}
+  {{range .Messages}}
+    {{if eq .Role "user"}}
+    <div class="chat-msg chat-msg-user">
+      <div class="chat-msg-content">{{.Content}}</div>
+      {{if .Attachments}}
+      <div class="chat-attachments">
+        {{range .Attachments}}
+        <span class="chat-attachment-file">{{.Filename}}</span>
+        {{end}}
+      </div>
+      {{end}}
+      <div class="chat-msg-time">{{localTime .CreatedAt "15:04"}}</div>
+    </div>
+    {{else if eq .Role "assistant"}}
+    <div class="chat-msg-agent-row">
+      <div class="chat-msg-avatar">{{if $agentName}}{{slice $agentName 0 1}}{{else}}A{{end}}</div>
+      <div class="chat-msg chat-msg-agent">
+        <div class="chat-msg-content chat-md-content">{{.Content}}</div>
+        <div class="chat-msg-time">{{localTime .CreatedAt "15:04"}}</div>
+      </div>
+    </div>
+    {{end}}
+  {{end}}
+{{else}}
+  {{template "chat-empty-state" .}}
+{{end}}
+{{end}}
+
+{{define "chat-empty-state"}}
+<div class="chat-empty-state">
+  <p>Start a conversation by typing a message below.</p>
+</div>
+{{end}}
+
+{{define "chat-msg-user"}}
+<div class="chat-msg chat-msg-user">
+  <div class="chat-msg-content">{{.Content}}</div>
+  {{if .Attachments}}
+  <div class="chat-attachments">
+    {{range .Attachments}}
+      {{if isImageMIME .ContentType}}
+      <img class="chat-attachment-thumb" src="data:{{.ContentType}};base64,{{base64 .Data}}" alt="{{.Filename}}">
+      {{else}}
+      <span class="chat-attachment-file">{{.Filename}}</span>
+      {{end}}
+    {{end}}
+  </div>
+  {{end}}
+  <div class="chat-msg-time">{{.Timestamp}}</div>
+</div>
+{{end}}

@@ -1,0 +1,96 @@
+{{define "card-heartbeat"}}
+<div id="card-heartbeat">
+<div class="card mt-2">
+  <div class="card-header">
+    <h3>Heartbeat</h3>
+    {{if .HeartbeatConfig.Enabled}}<span class="badge badge-running">enabled</span>
+    {{else}}<span class="badge badge-stopped">disabled</span>{{end}}
+    {{if can .User "agent.edit"}}
+    <button class="btn-edit-section"
+            hx-get="/agents/{{.Agent.ID}}/edit/heartbeat"
+            hx-target="body" hx-swap="beforeend"
+            title="Edit Heartbeat">&#9998;</button>
+    {{end}}
+  </div>
+  <div id="heartbeat-section">
+    <div class="card-body">
+      {{if .HeartbeatConfig.Enabled}}
+      <div class="form-group" style="margin-bottom: 0.5rem;">
+        <label>Interval</label>
+        <span class="text-mono">{{.HeartbeatConfig.Interval}}</span>
+      </div>
+      {{if .HeartbeatConfig.QuietHours}}
+      <div class="form-group" style="margin-bottom: 0.5rem;">
+        <label>Quiet Hours</label>
+        <span class="text-mono">{{.HeartbeatConfig.QuietHours}}</span>
+      </div>
+      {{end}}
+      {{if .HeartbeatSchedule}}
+      <div class="form-group" style="margin-bottom: 0.5rem;">
+        <label>Last Beat</label>
+        <span>{{if .HeartbeatSchedule.LastRunAt}}{{localTime .HeartbeatSchedule.LastRunAt "Jan 02 15:04"}}{{else}}never{{end}}</span>
+      </div>
+      {{end}}
+      <div style="margin-top: 0.75rem;">
+        <form style="display: inline;" hx-post="/agents/{{.Agent.ID}}/heartbeat/toggle" hx-target="#card-heartbeat" hx-swap="outerHTML">
+          <button type="submit" class="btn btn-sm btn-secondary">Disable</button>
+        </form>
+        {{if .HasScheduler}}
+        <form style="display: inline;" hx-post="/agents/{{.Agent.ID}}/heartbeat/pulse" hx-target="#card-heartbeat" hx-swap="outerHTML">
+          <button type="submit" class="btn btn-sm btn-primary">Pulse Now</button>
+        </form>
+        {{end}}
+      </div>
+      {{else}}
+      <p style="color: var(--text-muted);">Heartbeat is not configured. Use the edit button above to enable.</p>
+      {{end}}
+    </div>
+  </div>
+</div>
+</div>
+{{end}}
+
+{{define "modal-heartbeat"}}
+<dialog class="edit-section-dialog">
+  <form hx-post="/agents/{{.Agent.ID}}/edit/heartbeat"
+        hx-target="#card-heartbeat" hx-swap="outerHTML">
+    <div class="dialog-header">
+      <h3>Edit Heartbeat</h3>
+      <button type="button" class="btn-edit-section" onclick="this.closest('dialog').close()" title="Close">&times;</button>
+    </div>
+    <div class="dialog-body">
+      <div class="form-group">
+        <label style="display: flex; align-items: center; gap: 6px; cursor: pointer;">
+          <input type="checkbox" name="heartbeat_enabled" value="true" {{if .HeartbeatConfig.Enabled}}checked{{end}}>
+          Enabled
+        </label>
+      </div>
+      <div class="form-group">
+        <label for="edit-heartbeat-interval">Interval</label>
+        <select id="edit-heartbeat-interval" name="heartbeat_interval" class="form-input">
+          <option value="15m" {{if eq .HeartbeatConfig.Interval "15m"}}selected{{end}}>15 minutes</option>
+          <option value="30m" {{if eq .HeartbeatConfig.Interval "30m"}}selected{{end}}>30 minutes</option>
+          <option value="1h" {{if or (eq .HeartbeatConfig.Interval "1h") (eq .HeartbeatConfig.Interval "")}}selected{{end}}>1 hour</option>
+          <option value="2h" {{if eq .HeartbeatConfig.Interval "2h"}}selected{{end}}>2 hours</option>
+          <option value="4h" {{if eq .HeartbeatConfig.Interval "4h"}}selected{{end}}>4 hours</option>
+          <option value="8h" {{if eq .HeartbeatConfig.Interval "8h"}}selected{{end}}>8 hours</option>
+          <option value="12h" {{if eq .HeartbeatConfig.Interval "12h"}}selected{{end}}>12 hours</option>
+          <option value="24h" {{if eq .HeartbeatConfig.Interval "24h"}}selected{{end}}>24 hours</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label for="edit-heartbeat-prompt">Prompt</label>
+        <textarea id="edit-heartbeat-prompt" name="heartbeat_prompt" rows="4" class="form-textarea">{{.HeartbeatConfig.Prompt}}</textarea>
+      </div>
+      <div class="form-group">
+        <label for="edit-heartbeat-quiet">Quiet Hours</label>
+        <input type="text" id="edit-heartbeat-quiet" name="heartbeat_quiet_hours" class="form-input" value="{{.HeartbeatConfig.QuietHours}}" placeholder="22:00-06:00">
+      </div>
+    </div>
+    <div class="dialog-footer">
+      <button type="button" class="btn btn-secondary" onclick="this.closest('dialog').close()">Cancel</button>
+      <button type="submit" class="btn btn-primary">Save</button>
+    </div>
+  </form>
+</dialog>
+{{end}}

@@ -1,0 +1,245 @@
+{{define "card-model"}}
+<div class="card" id="card-model">
+  <div class="card-header">
+    <h3>Model</h3>
+    {{if can .User "agent.edit"}}
+    <button class="btn-edit-section"
+            hx-get="/agents/{{.Agent.ID}}/edit/model"
+            hx-target="body" hx-swap="beforeend"
+            title="Edit Model">&#9998;</button>
+    {{end}}
+  </div>
+  <div class="card-body">
+    {{if .HasMultipleSlots}}
+    <div class="form-group" style="margin-bottom: 12px;">
+      <label>Model Slots</label>
+      {{range .Slots}}
+      <div style="margin-bottom: 4px;">
+        <span class="text-mono">{{.Name}}</span>: {{.Provider}}/{{.Model}}
+        {{if eq .Name $.RoutingConfig.DefaultSlot}}<span class="badge badge-default" style="font-size: 11px; margin-left: 4px;">default</span>{{end}}
+      </div>
+      {{end}}
+    </div>
+    {{if or .RoutingConfig.AutoRoute .RoutingConfig.TriggerPrefix .RoutingConfig.ClassifierSlot .RoutingConfig.FallbackSlot}}
+    <div class="form-group" style="margin-bottom: 12px;">
+      <label>Routing</label>
+      <span style="font-size: 13px; color: var(--text-secondary);">
+        {{if .RoutingConfig.AutoRoute}}Auto-route{{end}}
+        {{if .RoutingConfig.TriggerPrefix}}{{if .RoutingConfig.AutoRoute}}, {{end}}Prefix triggers{{end}}
+        {{if .RoutingConfig.ClassifierSlot}}{{if or .RoutingConfig.AutoRoute .RoutingConfig.TriggerPrefix}}, {{end}}Classifier: {{.RoutingConfig.ClassifierSlot}}{{end}}
+        {{if .RoutingConfig.FallbackSlot}}{{if or .RoutingConfig.AutoRoute .RoutingConfig.TriggerPrefix .RoutingConfig.ClassifierSlot}}, {{end}}Fallback: {{.RoutingConfig.FallbackSlot}}{{end}}
+      </span>
+    </div>
+    {{end}}
+    {{else}}
+    <div class="form-group" style="margin-bottom: 12px;">
+      <label>Provider / Model</label>
+      <span class="text-mono">{{.Agent.ModelConfig.Provider}}/{{.Agent.ModelConfig.Model}}</span>
+    </div>
+    {{end}}
+    {{if .HasDedicatedKey}}
+    <div class="form-group" style="margin-bottom: 12px;">
+      <label>API Key</label>
+      <span class="badge badge-running">Per-agent key</span>
+    </div>
+    {{end}}
+    <div class="form-group" style="margin-bottom: 0;">
+      <label>Context Budget</label>
+      <span class="text-mono" style="font-size: 12px;">
+        {{if .Agent.ContextBudget.MaxTotalTokens}}{{.Agent.ContextBudget.MaxTotalTokens}}{{else}}8000{{end}} tokens
+        (Soul {{if .Agent.ContextBudget.SoulIdentityPct}}{{.Agent.ContextBudget.SoulIdentityPct}}{{else}}15{{end}}%
+        / Skills {{if .Agent.ContextBudget.SkillsPct}}{{.Agent.ContextBudget.SkillsPct}}{{else}}10{{end}}%
+        / Mem {{if .Agent.ContextBudget.MemoriesPct}}{{.Agent.ContextBudget.MemoriesPct}}{{else}}25{{end}}%
+        / Hist {{if .Agent.ContextBudget.HistoryPct}}{{.Agent.ContextBudget.HistoryPct}}{{else}}50{{end}}%)
+      </span>
+    </div>
+  </div>
+</div>
+{{end}}
+
+{{define "modal-model"}}
+<dialog class="edit-section-dialog">
+  <form hx-post="/agents/{{.Agent.ID}}/edit/model"
+        hx-target="#card-model" hx-swap="outerHTML">
+    <div class="dialog-header">
+      <h3>Edit Model</h3>
+      <button type="button" class="btn-edit-section" onclick="this.closest('dialog').close()" title="Close">&times;</button>
+    </div>
+    <div class="dialog-body">
+
+      <!-- Provider / Model (simple mode) -->
+      <div class="form-group">
+        <label for="edit-model-provider">Provider</label>
+        <select id="edit-model-provider" name="provider" class="form-input">
+          {{range .Providers}}
+          <option value="{{.Name}}" {{if eq .Name $.Agent.ModelConfig.Provider}}selected{{end}}>{{.Name}}</option>
+          {{end}}
+        </select>
+      </div>
+      <div class="form-group">
+        <label for="edit-model-model">Model</label>
+        <input type="text" id="edit-model-model" name="model" class="form-input" value="{{.Agent.ModelConfig.Model}}">
+      </div>
+
+      <!-- Context Budget -->
+      <fieldset style="border: 1px solid var(--border-color); border-radius: 6px; padding: 12px; margin-top: 8px;">
+        <legend style="font-weight: 600; font-size: 13px; padding: 0 6px;">Context Budget</legend>
+        <div class="form-group">
+          <label for="edit-model-max-tokens">Max Total Tokens</label>
+          <input type="number" id="edit-model-max-tokens" name="max_total_tokens" class="form-input"
+                 value="{{if .Agent.ContextBudget.MaxTotalTokens}}{{.Agent.ContextBudget.MaxTotalTokens}}{{else}}8000{{end}}" min="1">
+        </div>
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+          <div class="form-group">
+            <label for="edit-model-soul-pct">Soul/Identity %</label>
+            <input type="number" id="edit-model-soul-pct" name="soul_identity_pct" class="form-input"
+                   value="{{if .Agent.ContextBudget.SoulIdentityPct}}{{.Agent.ContextBudget.SoulIdentityPct}}{{else}}15{{end}}" min="0" max="100">
+          </div>
+          <div class="form-group">
+            <label for="edit-model-skills-pct">Skills %</label>
+            <input type="number" id="edit-model-skills-pct" name="skills_pct" class="form-input"
+                   value="{{if .Agent.ContextBudget.SkillsPct}}{{.Agent.ContextBudget.SkillsPct}}{{else}}10{{end}}" min="0" max="100">
+          </div>
+          <div class="form-group">
+            <label for="edit-model-memories-pct">Memories %</label>
+            <input type="number" id="edit-model-memories-pct" name="memories_pct" class="form-input"
+                   value="{{if .Agent.ContextBudget.MemoriesPct}}{{.Agent.ContextBudget.MemoriesPct}}{{else}}25{{end}}" min="0" max="100">
+          </div>
+          <div class="form-group">
+            <label for="edit-model-history-pct">History %</label>
+            <input type="number" id="edit-model-history-pct" name="history_pct" class="form-input"
+                   value="{{if .Agent.ContextBudget.HistoryPct}}{{.Agent.ContextBudget.HistoryPct}}{{else}}50{{end}}" min="0" max="100">
+          </div>
+        </div>
+      </fieldset>
+
+      <!-- Model Slots -->
+      <details style="margin-top: 12px;" {{if .HasMultipleSlots}}open{{end}}>
+        <summary style="cursor: pointer; font-weight: 600; font-size: 13px; color: var(--primary);">Model Slots</summary>
+        <p style="font-size: 12px; color: var(--text-muted); margin: 6px 0 8px;">Add multiple model slots to route messages to different models.</p>
+        <div style="margin-top: 8px;">
+          <input type="hidden" id="edit-slot-count" name="slot_count" value="{{if .HasMultipleSlots}}{{len .Slots}}{{end}}">
+          <div id="edit-slot-list">
+            {{range $i, $slot := .Slots}}
+            <fieldset class="edit-slot-row" style="border: 1px solid var(--border-color); border-radius: 6px; padding: 10px; margin-bottom: 8px;">
+              <legend style="font-size: 12px; padding: 0 4px;">Slot {{$i}}</legend>
+              <div class="form-group" style="margin-bottom: 6px;">
+                <label>Name</label>
+                <input type="text" name="slot_name_{{$i}}" class="form-input" value="{{$slot.Name}}">
+              </div>
+              <div class="form-group" style="margin-bottom: 6px;">
+                <label>Provider</label>
+                <select name="slot_provider_{{$i}}" class="form-input">
+                  {{range $.Providers}}
+                  <option value="{{.Name}}" {{if eq .Name $slot.Provider}}selected{{end}}>{{.Name}}</option>
+                  {{end}}
+                </select>
+              </div>
+              <div class="form-group" style="margin-bottom: 6px;">
+                <label>Model</label>
+                <input type="text" name="slot_model_{{$i}}" class="form-input" value="{{$slot.Model}}">
+              </div>
+              <div style="display: flex; align-items: center; justify-content: space-between;">
+                <label style="display: flex; align-items: center; gap: 4px; cursor: pointer; font-size: 13px;">
+                  <input type="checkbox" name="slot_default_{{$i}}" value="true"
+                         {{if eq $slot.Name $.RoutingConfig.DefaultSlot}}checked{{end}}> Default slot
+                </label>
+                <button type="button" class="btn btn-sm btn-danger" onclick="removeEditSlot(this)" style="font-size: 11px;">Remove</button>
+              </div>
+            </fieldset>
+            {{end}}
+          </div>
+          <button type="button" class="btn btn-sm btn-secondary" onclick="addEditSlot()" style="margin-bottom: 10px;">+ Add Slot</button>
+
+          <!-- Prototype slot for JS cloning -->
+          <template id="edit-slot-template">
+            <fieldset class="edit-slot-row" style="border: 1px solid var(--border-color); border-radius: 6px; padding: 10px; margin-bottom: 8px;">
+              <legend style="font-size: 12px; padding: 0 4px;">Slot</legend>
+              <div class="form-group" style="margin-bottom: 6px;">
+                <label>Name</label>
+                <input type="text" data-name="slot_name" class="form-input" placeholder="e.g. fast, smart, cheap">
+              </div>
+              <div class="form-group" style="margin-bottom: 6px;">
+                <label>Provider</label>
+                <select data-name="slot_provider" class="form-input">
+                  {{range .Providers}}
+                  <option value="{{.Name}}">{{.Name}}</option>
+                  {{end}}
+                </select>
+              </div>
+              <div class="form-group" style="margin-bottom: 6px;">
+                <label>Model</label>
+                <input type="text" data-name="slot_model" class="form-input" placeholder="model ID">
+              </div>
+              <div style="display: flex; align-items: center; justify-content: space-between;">
+                <label style="display: flex; align-items: center; gap: 4px; cursor: pointer; font-size: 13px;">
+                  <input type="checkbox" data-name="slot_default" value="true"> Default slot
+                </label>
+                <button type="button" class="btn btn-sm btn-danger" onclick="removeEditSlot(this)" style="font-size: 11px;">Remove</button>
+              </div>
+            </fieldset>
+          </template>
+
+          <!-- Routing options -->
+          <fieldset id="edit-routing-options" style="border: 1px solid var(--border-color); border-radius: 6px; padding: 10px; margin-top: 8px;{{if not .HasMultipleSlots}} display: none;{{end}}">
+            <legend style="font-size: 12px; padding: 0 4px;">Routing</legend>
+            <label style="display: flex; align-items: center; gap: 4px; cursor: pointer; font-size: 13px; margin-bottom: 6px;">
+              <input type="checkbox" name="auto_route" value="true" {{if .RoutingConfig.AutoRoute}}checked{{end}}> Auto-route
+            </label>
+            <label style="display: flex; align-items: center; gap: 4px; cursor: pointer; font-size: 13px; margin-bottom: 6px;">
+              <input type="checkbox" name="trigger_prefix" value="true" {{if .RoutingConfig.TriggerPrefix}}checked{{end}}> Trigger prefix
+            </label>
+            <div class="form-group" style="margin-bottom: 6px;">
+              <label>Classifier Slot</label>
+              <input type="text" name="classifier_slot" class="form-input" value="{{.RoutingConfig.ClassifierSlot}}" placeholder="e.g. classifier">
+            </div>
+            <div class="form-group" style="margin-bottom: 0;">
+              <label>Fallback Slot</label>
+              <input type="text" name="fallback_slot" class="form-input" value="{{.RoutingConfig.FallbackSlot}}" placeholder="e.g. default">
+            </div>
+          </fieldset>
+        </div>
+      </details>
+      <script>
+        function addEditSlot() {
+          var tmpl = document.getElementById('edit-slot-template');
+          var clone = tmpl.content.cloneNode(true);
+          var list = document.getElementById('edit-slot-list');
+          var idx = list.querySelectorAll('.edit-slot-row').length;
+          clone.querySelector('legend').textContent = 'Slot ' + idx;
+          clone.querySelectorAll('[data-name]').forEach(function(el) {
+            el.setAttribute('name', el.getAttribute('data-name') + '_' + idx);
+          });
+          list.appendChild(clone);
+          updateEditSlotCount();
+        }
+        function removeEditSlot(btn) {
+          btn.closest('.edit-slot-row').remove();
+          reindexEditSlots();
+          updateEditSlotCount();
+        }
+        function reindexEditSlots() {
+          var rows = document.querySelectorAll('#edit-slot-list .edit-slot-row');
+          rows.forEach(function(row, i) {
+            row.querySelector('legend').textContent = 'Slot ' + i;
+            row.querySelectorAll('[name]').forEach(function(el) {
+              el.name = el.name.replace(/_\d+$/, '_' + i);
+            });
+          });
+        }
+        function updateEditSlotCount() {
+          var count = document.querySelectorAll('#edit-slot-list .edit-slot-row').length;
+          document.getElementById('edit-slot-count').value = count > 0 ? count : '';
+          var routing = document.getElementById('edit-routing-options');
+          if (routing) routing.style.display = count > 1 ? '' : 'none';
+        }
+      </script>
+
+    </div>
+    <div class="dialog-footer">
+      <button type="button" class="btn btn-secondary" onclick="this.closest('dialog').close()">Cancel</button>
+      <button type="submit" class="btn btn-primary">Save</button>
+    </div>
+  </form>
+</dialog>
+{{end}}

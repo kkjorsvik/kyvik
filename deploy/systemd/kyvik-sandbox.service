@@ -1,0 +1,44 @@
+# Kyvik systemd service — SANDBOX mode (hardened, default)
+# Agents are confined to their workspace. ProtectHome prevents host filesystem access.
+# Use kyvik-host.service for power/unrestricted tier access.
+[Unit]
+Description=Kyvik AI Agent Framework
+After=network.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=kyvik
+Group=kyvik
+WorkingDirectory=/opt/kyvik
+ExecStart=/opt/kyvik/bin/kyvik -config /etc/kyvik/kyvik.yaml
+Restart=on-failure
+RestartSec=5
+
+# Environment
+EnvironmentFile=-/etc/kyvik/env
+
+# Filesystem hardening
+ProtectHome=true
+ProtectSystem=strict
+PrivateTmp=true
+ReadWritePaths=/var/lib/kyvik /var/log/kyvik
+ReadOnlyPaths=/etc/kyvik /opt/kyvik
+
+# Security hardening
+NoNewPrivileges=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+RestrictNamespaces=true
+LockPersonality=true
+MemoryDenyWriteExecute=false
+RestrictRealtime=true
+
+# Resource limits
+LimitNOFILE=65536
+LimitNPROC=4096
+
+[Install]
+WantedBy=multi-user.target

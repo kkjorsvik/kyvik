@@ -1,0 +1,113 @@
+{{define "card-feedback-hooks"}}
+<div id="card-feedback-hooks">
+<div class="card mt-2">
+  <div class="card-header">
+    <h3>Feedback Hooks</h3>
+    {{if .FeedbackHooksConfig.Enabled}}<span class="badge badge-running">enabled</span>
+    {{else}}<span class="badge badge-stopped">disabled</span>{{end}}
+    {{if can .User "agent.edit"}}
+    <button class="btn-edit-section"
+            hx-get="/agents/{{.Agent.ID}}/edit/feedback-hooks"
+            hx-target="body" hx-swap="beforeend"
+            title="Edit Feedback Hooks">&#9998;</button>
+    {{end}}
+  </div>
+  <div id="feedback-hooks-section">
+    <div class="card-body">
+      {{if .FeedbackHooksConfig.Enabled}}
+      <div class="form-group" style="margin-bottom: 0.5rem;">
+        <label>Hooks</label>
+        <span class="text-mono">{{len .FeedbackHooksConfig.Hooks}} configured</span>
+      </div>
+      <div class="form-group" style="margin-bottom: 0.5rem;">
+        <label>Max Output Bytes</label>
+        <span class="text-mono">{{if .FeedbackHooksConfig.MaxOutputBytes}}{{.FeedbackHooksConfig.MaxOutputBytes}}{{else}}4096{{end}}</span>
+      </div>
+      {{if .FeedbackHooksConfig.Hooks}}
+      <div class="table-wrap" style="margin-top: 8px;">
+        <table>
+          <thead>
+            <tr>
+              <th>After</th>
+              <th>Match</th>
+              <th>Run</th>
+              <th>Timeout</th>
+            </tr>
+          </thead>
+          <tbody>
+            {{range .FeedbackHooksConfig.Hooks}}
+            <tr>
+              <td><span class="text-mono">{{.After}}</span></td>
+              <td>{{if .Match}}<span class="text-mono">{{.Match}}</span>{{else}}<span style="color: var(--text-muted);">*</span>{{end}}</td>
+              <td><span class="text-mono" style="font-size: 12px;">{{.Run}}</span></td>
+              <td><span class="text-mono">{{if .TimeoutSec}}{{.TimeoutSec}}s{{else}}10s{{end}}</span></td>
+            </tr>
+            {{end}}
+          </tbody>
+        </table>
+      </div>
+      {{end}}
+      {{else}}
+      <p style="color: var(--text-muted);">Feedback hooks are not configured. Use the edit button above to enable.</p>
+      {{end}}
+    </div>
+  </div>
+</div>
+</div>
+{{end}}
+
+{{define "modal-feedback-hooks"}}
+<dialog class="edit-section-dialog">
+  <form hx-post="/agents/{{.Agent.ID}}/edit/feedback-hooks"
+        hx-target="#card-feedback-hooks" hx-swap="outerHTML">
+    <div class="dialog-header">
+      <h3>Edit Feedback Hooks</h3>
+      <button type="button" class="btn-edit-section" onclick="this.closest('dialog').close()" title="Close">&times;</button>
+    </div>
+    <div class="dialog-body">
+      <div class="form-group">
+        <label style="display: flex; align-items: center; gap: 6px; cursor: pointer;">
+          <input type="checkbox" name="feedback_hooks_enabled" value="true" {{if .FeedbackHooksConfig.Enabled}}checked{{end}}>
+          Enabled
+        </label>
+        <small style="color: var(--text-muted);">Run shell commands after tool actions and feed output back to the agent.</small>
+      </div>
+      <div class="form-group">
+        <label for="edit-fh-max-output">Max Output Bytes</label>
+        <input type="number" id="edit-fh-max-output" name="feedback_hooks_max_output_bytes" class="form-input"
+               value="{{if .FeedbackHooksConfig.MaxOutputBytes}}{{.FeedbackHooksConfig.MaxOutputBytes}}{{else}}4096{{end}}" min="256">
+        <small style="color: var(--text-muted);">Maximum bytes captured from each hook's stdout/stderr.</small>
+      </div>
+      <div class="form-group">
+        <label for="edit-fh-hooks-json">Hooks (JSON array)</label>
+        <textarea id="edit-fh-hooks-json" name="feedback_hooks_json" rows="12" class="form-textarea"
+                  style="font-family: var(--font-mono, monospace); font-size: 13px;"
+                  placeholder='[
+  {
+    "after": "file.edit",
+    "match": "*.go",
+    "run": "go vet ./...",
+    "timeout_sec": 30
+  },
+  {
+    "after": "file.*",
+    "match": "*.yaml",
+    "run": "yamllint -d relaxed ${FILE}",
+    "timeout_sec": 10
+  }
+]'>{{if .FeedbackHooksConfig.Hooks}}{{marshalJSON .FeedbackHooksConfig.Hooks}}{{end}}</textarea>
+        <small style="color: var(--text-muted);">
+          Each hook: <code>after</code> = tool.action pattern (e.g. "file.edit", "file.*", "*.*"),
+          <code>match</code> = glob on path parameter (optional),
+          <code>run</code> = shell command,
+          <code>timeout_sec</code> = per-hook timeout (default 10).
+        </small>
+      </div>
+    </div>
+    <div class="dialog-footer">
+      <button type="button" class="btn btn-secondary" onclick="this.closest('dialog').close()">Cancel</button>
+      <button type="submit" class="btn btn-primary">Save</button>
+    </div>
+  </form>
+</dialog>
+{{end}}

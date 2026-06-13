@@ -1,0 +1,145 @@
+{{define "settings"}}
+<div class="page-header">
+  <div>
+    <h2>Settings</h2>
+    <p>System-wide configuration</p>
+  </div>
+</div>
+
+<div class="tabs" style="margin-bottom: 24px; border-bottom: 2px solid var(--border-color);">
+  <button class="tab-btn {{if eq .ActiveTab "circuit-breaker"}}active{{end}}"
+          hx-get="/settings?tab=circuit-breaker"
+          hx-target="#settings-content"
+          hx-swap="innerHTML"
+          hx-push-url="/settings?tab=circuit-breaker">
+    Circuit Breaker
+  </button>
+  <button class="tab-btn {{if eq .ActiveTab "system"}}active{{end}}"
+          hx-get="/settings?tab=system"
+          hx-target="#settings-content"
+          hx-swap="innerHTML"
+          hx-push-url="/settings?tab=system">
+    System
+  </button>
+  <button class="tab-btn {{if eq .ActiveTab "obsidian-vaults"}}active{{end}}"
+          hx-get="/settings?tab=obsidian-vaults"
+          hx-target="#settings-content"
+          hx-swap="innerHTML"
+          hx-push-url="/settings?tab=obsidian-vaults">
+    Obsidian Vaults
+  </button>
+</div>
+
+<div id="settings-content">
+  {{if eq .ActiveTab "system"}}
+    {{template "settings-tab-system" .}}
+  {{else if eq .ActiveTab "obsidian-vaults"}}
+    {{template "settings-tab-obsidian-vaults" .}}
+  {{else}}
+    {{template "settings-tab-circuit-breaker" .}}
+  {{end}}
+</div>
+{{end}}
+
+{{define "settings-tab-circuit-breaker"}}
+<div class="card">
+  <div class="card-header">
+    <h3>Circuit Breaker Defaults</h3>
+    {{if .SystemDefaults.Enabled}}
+    <span class="badge badge-running">Enabled</span>
+    {{else}}
+    <span class="badge badge-stopped">Disabled</span>
+    {{end}}
+    <button class="btn-edit-section" onclick="document.getElementById('cb-defaults-dialog').showModal()" title="Edit Defaults">&#9998;</button>
+  </div>
+  <div class="card-body">
+    <p style="color: var(--text-secondary); margin-bottom: 16px;">
+      These are the default thresholds for all agents. Individual agents can override these in their circuit breaker settings.
+    </p>
+    <div style="display: flex; gap: 24px; flex-wrap: wrap;">
+      <div>
+        <span style="color: var(--text-secondary); font-size: 12px;">Error Threshold</span>
+        <div class="text-mono" style="font-size: 16px;">{{.SystemDefaults.ErrorThreshold}}</div>
+      </div>
+      <div>
+        <span style="color: var(--text-secondary); font-size: 12px;">Error Window (min)</span>
+        <div class="text-mono" style="font-size: 16px;">{{.SystemDefaults.ErrorWindowMinutes}}</div>
+      </div>
+      <div>
+        <span style="color: var(--text-secondary); font-size: 12px;">Spending Velocity (%)</span>
+        <div class="text-mono" style="font-size: 16px;">{{.SystemDefaults.SpendingVelocityPct}}</div>
+      </div>
+      <div>
+        <span style="color: var(--text-secondary); font-size: 12px;">Spending Window (min)</span>
+        <div class="text-mono" style="font-size: 16px;">{{.SystemDefaults.SpendingWindowMinutes}}</div>
+      </div>
+      <div>
+        <span style="color: var(--text-secondary); font-size: 12px;">Action Rate (/min)</span>
+        <div class="text-mono" style="font-size: 16px;">{{.SystemDefaults.ActionRatePerMinute}}</div>
+      </div>
+      <div>
+        <span style="color: var(--text-secondary); font-size: 12px;">Destructive Limit</span>
+        <div class="text-mono" style="font-size: 16px;">{{.SystemDefaults.DestructiveLimit}}</div>
+      </div>
+      <div>
+        <span style="color: var(--text-secondary); font-size: 12px;">Loop Identical Count</span>
+        <div class="text-mono" style="font-size: 16px;">{{.SystemDefaults.LoopIdenticalCount}}</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<dialog id="cb-defaults-dialog" class="edit-section-dialog">
+  <form hx-post="/settings/circuit-breaker"
+        hx-target="#settings-content" hx-swap="innerHTML">
+    <div class="dialog-header">
+      <h3>Edit Circuit Breaker Defaults</h3>
+      <button type="button" class="btn-edit-section" onclick="this.closest('dialog').close()" title="Close">&times;</button>
+    </div>
+    <div class="dialog-body">
+      <div class="form-group">
+        <label style="display: flex; align-items: center; gap: 6px; cursor: pointer;">
+          <input type="checkbox" name="circuit_breaker_enabled" value="true" {{if .SystemDefaults.Enabled}}checked{{end}}>
+          Enabled
+        </label>
+      </div>
+      <div class="form-group">
+        <label for="sys-cb-error-threshold">Error Threshold</label>
+        <input type="number" id="sys-cb-error-threshold" name="circuit_breaker_error_threshold" class="form-input" value="{{.SystemDefaults.ErrorThreshold}}" min="1">
+      </div>
+      <div class="form-group">
+        <label for="sys-cb-error-window">Error Window (minutes)</label>
+        <input type="number" id="sys-cb-error-window" name="circuit_breaker_error_window_minutes" class="form-input" value="{{.SystemDefaults.ErrorWindowMinutes}}" min="1">
+      </div>
+      <div class="form-group">
+        <label for="sys-cb-spending-velocity">Spending Velocity (%)</label>
+        <input type="number" id="sys-cb-spending-velocity" name="circuit_breaker_spending_velocity_pct" class="form-input" value="{{.SystemDefaults.SpendingVelocityPct}}" min="1">
+      </div>
+      <div class="form-group">
+        <label for="sys-cb-spending-window">Spending Window (minutes)</label>
+        <input type="number" id="sys-cb-spending-window" name="circuit_breaker_spending_window_minutes" class="form-input" value="{{.SystemDefaults.SpendingWindowMinutes}}" min="1">
+      </div>
+      <div class="form-group">
+        <label for="sys-cb-action-rate">Action Rate (per minute)</label>
+        <input type="number" id="sys-cb-action-rate" name="circuit_breaker_action_rate_per_minute" class="form-input" value="{{.SystemDefaults.ActionRatePerMinute}}" min="1">
+      </div>
+      <div class="form-group">
+        <label for="sys-cb-destructive-limit">Destructive Limit</label>
+        <input type="number" id="sys-cb-destructive-limit" name="circuit_breaker_destructive_limit" class="form-input" value="{{.SystemDefaults.DestructiveLimit}}" min="1">
+      </div>
+      <div class="form-group">
+        <label for="sys-cb-loop-identical">Loop Identical Count</label>
+        <input type="number" id="sys-cb-loop-identical" name="circuit_breaker_loop_identical_count" class="form-input" value="{{.SystemDefaults.LoopIdenticalCount}}" min="1">
+      </div>
+    </div>
+    <div class="dialog-footer">
+      <button type="button" class="btn btn-secondary" onclick="this.closest('dialog').close()">Cancel</button>
+      <button type="submit" class="btn btn-primary" onclick="this.closest('dialog').close()">Save</button>
+    </div>
+  </form>
+</dialog>
+{{end}}
+
+{{define "settings-tab-system"}}
+{{template "system" .}}
+{{end}}

@@ -1,0 +1,84 @@
+{{define "users-list"}}
+<div class="page-header">
+  <div>
+    <h2>Users</h2>
+    {{if and .AuthCaps .AuthCaps.ManagedBy}}
+    <p>Users are managed by {{.AuthCaps.ManagedBy}}.</p>
+    {{else}}
+    <p>Manage dashboard users and access state.</p>
+    {{end}}
+  </div>
+  <a href="/groups" class="btn btn-secondary">Manage Groups</a>
+</div>
+{{if .ErrorMessage}}<div class="alert alert-error">{{.ErrorMessage}}</div>{{end}}
+{{if .SuccessMessage}}<div class="alert alert-success">{{.SuccessMessage}}</div>{{end}}
+
+{{if or (not .AuthCaps) .AuthCaps.CanManageUsers}}
+<div class="card">
+  <div class="card-header"><h3>Create User</h3></div>
+  <div class="card-body">
+    <form method="POST" action="/users">
+      <div class="form-group"><label>Username</label><input class="form-input" name="username" required></div>
+      <div class="form-group mt-2"><label>Display Name</label><input class="form-input" name="display_name"></div>
+      <div class="form-group mt-2"><label>Password</label><input class="form-input" type="password" name="password" minlength="10" required></div>
+      <label style="display:flex;gap:8px;margin-top:10px;"><input type="checkbox" name="is_admin"> Admin</label>
+      <button class="btn btn-primary mt-2" type="submit">Create User</button>
+    </form>
+  </div>
+</div>
+{{end}}
+
+<div class="card mt-2">
+  <div class="card-header"><h3>Existing Users</h3></div>
+  <div class="card-body">
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Username</th>
+            <th>Display Name</th>
+            <th>Role Summary</th>
+            <th>Last Login</th>
+            <th>Status</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {{range .Users}}
+          <tr>
+            <td><code>{{.Username}}</code></td>
+            <td>{{.DisplayName}}</td>
+            <td>{{.RoleSummary}}</td>
+            <td>{{if .LastLoginAt}}{{localTime .LastLoginAt "2006-01-02 15:04:05"}}{{else}}Never{{end}}</td>
+            <td>{{if .IsActive}}Active{{else}}Inactive{{end}}</td>
+            <td>
+              {{if or (not $.AuthCaps) $.AuthCaps.CanManageUsers}}
+              <details>
+                <summary class="btn btn-sm">Edit</summary>
+                <form method="POST" action="/users/{{.ID}}/edit" style="margin-top:8px;">
+                  <div class="form-group"><label>Display Name</label><input class="form-input" name="display_name" value="{{.DisplayName}}"></div>
+                  <label style="display:flex;gap:8px;margin-top:8px;"><input type="checkbox" name="is_active" {{if .IsActive}}checked{{end}}> Active</label>
+                  <button class="btn btn-sm mt-2" type="submit">Save</button>
+                </form>
+                {{if or (not $.AuthCaps) $.AuthCaps.CanManagePasswords}}
+                <form method="POST" action="/users/{{.ID}}/reset-password" style="margin-top:8px;">
+                  <div class="form-group"><label>New Password</label><input class="form-input" name="new_password" type="password" minlength="10" required></div>
+                  <button class="btn btn-sm mt-2" type="submit">Reset Password</button>
+                </form>
+                {{end}}
+                <form method="POST" action="/users/{{.ID}}/delete" style="margin-top:8px;">
+                  <button class="btn btn-sm btn-danger" type="submit" {{if eq .ID $.CurrentUserID}}disabled title="Cannot delete current user"{{else}}hx-confirm="Delete user {{.Username}}?"{{end}}>Delete</button>
+                </form>
+              </details>
+              {{else}}
+              <span style="color:var(--text-muted);">Managed</span>
+              {{end}}
+            </td>
+          </tr>
+          {{end}}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{{end}}

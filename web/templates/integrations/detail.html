@@ -1,0 +1,165 @@
+{{define "integrations-detail"}}
+<div class="page-header">
+  <div>
+    <h2>{{.Integration.DisplayName}}</h2>
+    <p>{{.Integration.Description}}</p>
+  </div>
+  <div style="display: flex; gap: 0.5rem; align-items: center;">
+    <span class="badge badge-info">{{.Integration.Category}}</span>
+    <span class="badge {{if eq .Integration.Source "builtin"}}badge-running{{else}}badge-stopped{{end}}">{{.Integration.Source}}</span>
+    <a href="/integrations" class="btn btn-secondary">Back to Catalog</a>
+  </div>
+</div>
+
+{{if eq (print .Integration.Source) "local"}}
+<div style="display: flex; gap: 0.5rem; margin-bottom: 1rem;">
+  <a href="/integrations/{{.Integration.Name}}/export" class="btn btn-secondary">Export YAML</a>
+  <form method="POST" action="/integrations/{{.Integration.Name}}/delete" onsubmit="return confirm('Delete this custom integration?')">
+    <button type="submit" class="btn btn-danger" hx-post="/integrations/{{.Integration.Name}}/delete" hx-confirm="Delete this custom integration?">Delete</button>
+  </form>
+</div>
+{{end}}
+
+<!-- Endpoints Preview -->
+<div class="card mt-2">
+  <div class="card-header">
+    <h3>Endpoints ({{len .Integration.Endpoints}})</h3>
+  </div>
+  <div class="card-body" style="padding: 0;">
+    <table class="table">
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Method</th>
+          <th>URL</th>
+          <th>Description</th>
+          <th>Rate Limit</th>
+        </tr>
+      </thead>
+      <tbody>
+        {{range .Integration.Endpoints}}
+        <tr>
+          <td><code>{{.Name}}</code></td>
+          <td><span class="badge badge-default">{{.Method}}</span></td>
+          <td style="max-width: 300px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;"><code>{{.URL}}</code></td>
+          <td>{{.Description}}</td>
+          <td>
+            {{if .RateLimitRPM}}{{.RateLimitRPM}} rpm{{else}}&mdash;{{end}}
+            {{if .CacheTTLSeconds}} &middot; cache {{.CacheTTLSeconds}}s{{end}}
+          </td>
+        </tr>
+        {{end}}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+{{if .Integration.Prompts}}
+<div class="card mt-2">
+  <div class="card-header">
+    <h3>Skill Prompt</h3>
+  </div>
+  <div class="card-body">
+    <pre style="white-space: pre-wrap; font-size: 0.9rem;">{{.Integration.Prompts.System}}</pre>
+  </div>
+</div>
+{{end}}
+
+{{if .OAuthSuccess}}
+<div class="alert alert-success" style="margin-bottom: 1rem;">
+  <strong>OAuth2 authorization complete.</strong> Tokens have been stored in the vault.
+</div>
+{{end}}
+
+{{if .Installed}}
+<div class="alert alert-success" style="margin-bottom: 1rem;">
+  <strong>Integration installed successfully.</strong>
+  {{if eq .Integration.Auth.Type "oauth2"}}
+  Now authorize access using the button below.
+  {{end}}
+</div>
+{{end}}
+
+{{if and (eq .Integration.Auth.Type "oauth2") .Installed .InstalledAgentID}}
+<div class="card mt-2">
+  <div class="card-header">
+    <h3>Authorize OAuth2 Access</h3>
+  </div>
+  <div class="card-body">
+    <p>Complete the OAuth2 authorization flow to grant {{.Integration.DisplayName}} access.</p>
+    <a href="/oauth/start?integration={{.Integration.Name}}&agent_id={{.InstalledAgentID}}" class="btn btn-primary">
+      Authorize with {{.Integration.DisplayName}}
+    </a>
+  </div>
+</div>
+{{end}}
+
+<!-- Install Form -->
+<div class="card mt-2">
+  <div class="card-header">
+    <h3>Install to Agent</h3>
+  </div>
+  <div class="card-body">
+    {{if .Integration.Auth.Instructions}}
+    <div class="alert alert-info" style="margin-bottom: 1rem;">
+      <strong>Setup Instructions:</strong>
+      <pre style="white-space: pre-wrap; margin: 0.5rem 0 0 0; font-size: 0.9rem;">{{.Integration.Auth.Instructions}}</pre>
+      {{if .Integration.Auth.SetupURL}}
+      <p style="margin-top: 0.5rem;"><a href="{{.Integration.Auth.SetupURL}}" target="_blank" rel="noopener">Open setup page &rarr;</a></p>
+      {{end}}
+    </div>
+    {{end}}
+
+    <form method="POST" action="/integrations/{{.Integration.Name}}/install" hx-post="/integrations/{{.Integration.Name}}/install">
+      <div class="form-group">
+        <label for="agent_id">Agent</label>
+        <select name="agent_id" id="agent_id" class="form-select" required>
+          <option value="">Select an agent...</option>
+          {{range .Agents}}
+          <option value="{{.ID}}">{{.Name}} ({{.Template}})</option>
+          {{end}}
+        </select>
+      </div>
+
+      {{if and .Integration.Auth.Type (ne .Integration.Auth.Type "none") (ne .Integration.Auth.Type "oauth2")}}
+      <div class="form-group">
+        <label for="auth_secret">
+          {{if eq .Integration.Auth.Type "bearer"}}API Token / Bearer Token{{end}}
+          {{if eq .Integration.Auth.Type "basic"}}Username:Password{{end}}
+          {{if eq .Integration.Auth.Type "api_key"}}API Key{{end}}
+          {{if eq .Integration.Auth.Type "custom_header"}}Auth Header Value{{end}}
+        </label>
+        <input type="password" name="auth_secret" id="auth_secret" class="form-input" required
+               placeholder="Enter your {{.Integration.DisplayName}} credentials">
+      </div>
+      {{end}}
+
+      {{if eq .Integration.Auth.Type "oauth2"}}
+      <div class="form-group">
+        <label for="client_id">Client ID</label>
+        <input type="text" name="client_id" id="client_id" class="form-input" required
+               placeholder="Enter your OAuth2 Client ID">
+      </div>
+      <div class="form-group">
+        <label for="client_secret">Client Secret</label>
+        <input type="password" name="client_secret" id="client_secret" class="form-input" required
+               placeholder="Enter your OAuth2 Client Secret">
+      </div>
+      <p class="text-muted" style="margin-bottom: 0.5rem;">After installing, click "Authorize" to complete the OAuth2 flow.</p>
+      {{end}}
+
+      {{range .Integration.Variables}}
+      <div class="form-group">
+        <label for="var_{{.Name}}">{{.Description}}{{if .Required}} *{{end}}</label>
+        <input type="text" name="var_{{.Name}}" id="var_{{.Name}}" class="form-input"
+               {{if .Required}}required{{end}}
+               {{if .Default}}value="{{.Default}}"{{end}}
+               {{if .Example}}placeholder="e.g., {{.Example}}"{{end}}>
+      </div>
+      {{end}}
+
+      <button type="submit" class="btn btn-primary">Install Integration</button>
+    </form>
+  </div>
+</div>
+{{end}}

@@ -1,0 +1,135 @@
+name: google-calendar
+display_name: Google Calendar
+description: Manage Google Calendar — list, create, update, and delete events, check availability.
+version: 1.0.0
+category: calendar
+icon: google-calendar
+auth:
+  type: oauth2
+  client_id_ref: google_client_id
+  client_secret_ref: google_client_secret
+  auth_url: https://accounts.google.com/o/oauth2/v2/auth
+  token_url: https://oauth2.googleapis.com/token
+  scopes: https://www.googleapis.com/auth/calendar
+  setup_url: https://console.cloud.google.com/apis/credentials
+  instructions: |
+    1. Go to https://console.cloud.google.com/apis/credentials
+    2. Create an OAuth 2.0 Client ID (Web application type)
+    3. Add your Kyvik URL + /oauth/callback as an authorized redirect URI
+    4. Enable the Google Calendar API in your project
+    5. Enter the Client ID and Client Secret below
+
+endpoints:
+  - name: gcal_list_events
+    description: List upcoming calendar events
+    method: GET
+    url: https://www.googleapis.com/calendar/v3/calendars/primary/events
+    query_params:
+      timeMin: "{{.time_min}}"
+      timeMax: "{{.time_max}}"
+      maxResults: "{{or .limit 10}}"
+      singleEvents: "true"
+      orderBy: startTime
+    parameters:
+      - name: time_min
+        description: Start of time range (RFC 3339, e.g. 2024-01-01T00:00:00Z)
+        required: false
+      - name: time_max
+        description: End of time range (RFC 3339)
+        required: false
+      - name: limit
+        description: Max events to return
+        required: false
+        type: int
+        default: "10"
+    response_template: |
+      {{if .data.items}}Upcoming events:
+      {{range .data.items}}- {{if .start.dateTime}}{{.start.dateTime}}{{else}}{{.start.date}}{{end}}: {{.summary}}{{if .location}} @ {{.location}}{{end}}
+      {{end}}{{else}}No events found.{{end}}
+    rate_limit_rpm: 30
+    timeout_seconds: 15
+
+  - name: gcal_create_event
+    description: Create a new calendar event
+    method: POST
+    url: https://www.googleapis.com/calendar/v3/calendars/primary/events
+    headers:
+      Content-Type: application/json
+    body_template: |
+      {"summary":"{{.summary}}","description":"{{.description}}","start":{"dateTime":"{{.start_time}}","timeZone":"{{or .timezone \"UTC\"}}"},"end":{"dateTime":"{{.end_time}}","timeZone":"{{or .timezone \"UTC\"}}"}}
+    parameters:
+      - name: summary
+        description: Event title
+        required: true
+      - name: description
+        description: Event description
+        required: true
+      - name: start_time
+        description: Start time (RFC 3339, e.g. 2024-01-15T09:00:00)
+        required: true
+      - name: end_time
+        description: End time (RFC 3339)
+        required: true
+      - name: timezone
+        description: Timezone for the event
+        required: false
+        default: "UTC"
+    rate_limit_rpm: 20
+    timeout_seconds: 15
+
+  - name: gcal_update_event
+    description: Update an existing calendar event
+    method: PATCH
+    url: "https://www.googleapis.com/calendar/v3/calendars/primary/events/{{.event_id}}"
+    headers:
+      Content-Type: application/json
+    body_template: |
+      { {{if .summary}}"summary":"{{.summary}}"{{end}} {{if .start_time}},"start":{"dateTime":"{{.start_time}}"}{{end}} {{if .end_time}},"end":{"dateTime":"{{.end_time}}"}{{end}} }
+    parameters:
+      - name: event_id
+        description: Event ID to update
+        required: true
+      - name: summary
+        description: New event title
+        required: false
+      - name: start_time
+        description: New start time (RFC 3339)
+        required: false
+      - name: end_time
+        description: New end time (RFC 3339)
+        required: false
+    rate_limit_rpm: 20
+    timeout_seconds: 15
+
+  - name: gcal_delete_event
+    description: Delete a calendar event
+    method: DELETE
+    url: "https://www.googleapis.com/calendar/v3/calendars/primary/events/{{.event_id}}"
+    parameters:
+      - name: event_id
+        description: Event ID to delete
+        required: true
+    rate_limit_rpm: 10
+    timeout_seconds: 10
+
+  - name: gcal_availability
+    description: Check free/busy availability
+    method: POST
+    url: https://www.googleapis.com/calendar/v3/freeBusy
+    headers:
+      Content-Type: application/json
+    body_template: |
+      {"timeMin":"{{.time_min}}","timeMax":"{{.time_max}}","items":[{"id":"primary"}]}
+    parameters:
+      - name: time_min
+        description: Start of time range (RFC 3339)
+        required: true
+      - name: time_max
+        description: End of time range (RFC 3339)
+        required: true
+    response_template: |
+      {{if .data.calendars.primary.busy}}Busy times:
+      {{range .data.calendars.primary.busy}}- {{.start}} to {{.end}}
+      {{end}}{{else}}All free during this period.{{end}}
+    rate_limit_rpm: 20
+    timeout_seconds: 15

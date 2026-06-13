@@ -1,0 +1,62 @@
+{{define "discord-auth-list"}}
+<div class="page-header">
+  <div>
+    <h2>Discord Authorization</h2>
+    <p>Manage Discord user access for <strong>{{.Agent.Name}}</strong></p>
+  </div>
+  <a href="/agents/{{.Agent.ID}}" class="btn btn-secondary">Back to Agent</a>
+</div>
+
+<!-- Redeem Code Card -->
+<div class="card" style="margin-bottom: 20px;">
+  <div class="card-header"><h3>Redeem Pairing Code</h3></div>
+  <div class="card-body">
+    <p style="color: var(--text-secondary); margin-bottom: 12px;">
+      Discord users receive a pairing code when they first message the bot.
+      Enter the code here to authorize them.
+    </p>
+    <form hx-post="/discord-auth/redeem"
+          hx-target="#redeem-result"
+          hx-swap="innerHTML"
+          style="display: flex; gap: 8px; align-items: flex-end;">
+      <div>
+        <label for="redeem-code" style="font-size: 13px; color: var(--text-secondary);">Code</label>
+        <input type="text" id="redeem-code" name="code" class="form-input"
+               placeholder="e.g. K7X2MP" style="text-transform: uppercase; font-family: var(--font-mono); width: 140px;"
+               maxlength="6" required>
+      </div>
+      <button type="submit" class="btn btn-primary">Redeem</button>
+    </form>
+    <div id="redeem-result" style="margin-top: 8px;"></div>
+  </div>
+</div>
+
+<!-- Add to Allowlist Card -->
+<div class="card" style="margin-bottom: 20px;">
+  <div class="card-header"><h3>Add to Allowlist</h3></div>
+  <div class="card-body">
+    <p style="color: var(--text-secondary); margin-bottom: 12px;">
+      Pre-approve a Discord user by their user ID. They will be able to message this agent without pairing.
+    </p>
+    <form hx-post="/agents/{{.Agent.ID}}/discord-auth/allowlist"
+          hx-target="#discord-auth-table"
+          hx-swap="outerHTML"
+          style="display: flex; gap: 8px; align-items: flex-end;">
+      <div>
+        <label for="allowlist-user-id" style="font-size: 13px; color: var(--text-secondary);">Discord User ID</label>
+        <input type="text" id="allowlist-user-id" name="discord_user_id" class="form-input"
+               placeholder="e.g. 123456789012345678" style="font-family: var(--font-mono); width: 220px;" required>
+      </div>
+      <button type="submit" class="btn btn-primary">Add</button>
+    </form>
+  </div>
+</div>
+
+<!-- Authorizations Table -->
+<div class="card">
+  <div class="card-header"><h3>Authorized Users</h3></div>
+  <div class="card-body">
+    {{template "discord-auth-table" .}}
+  </div>
+</div>
+{{end}}

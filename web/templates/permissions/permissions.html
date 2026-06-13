@@ -1,0 +1,278 @@
+{{define "permissions-page"}}
+<div class="page-header">
+  <div>
+    <h2>Permissions &mdash; {{.Agent.Name}}</h2>
+    <p>Manage permission tier, capability overrides, and path-based access controls</p>
+  </div>
+  <div>
+    <a href="/agents/{{.Agent.ID}}" class="btn btn-sm">&larr; Back to Agent</a>
+  </div>
+</div>
+
+<!-- Tier Section -->
+<div class="card" style="margin-bottom: 20px;">
+  <div class="card-header">
+    <h3>Permission Tier</h3>
+  </div>
+  <div class="card-body">
+    <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 12px;">
+      <span class="badge badge-{{.Agent.Template}}">{{.Agent.Template}}</span>
+      {{if .Template}}
+      <span style="color: var(--text-secondary); font-size: 13px;">{{.Template.Description}}</span>
+      {{end}}
+    </div>
+
+    {{if eq .Agent.Template "operator"}}
+    <div class="alert alert-warning" style="padding: 6px 10px; font-size: 12px; margin-bottom: 12px;">
+      Can execute commands and delete resources. Includes host filesystem access via allowlists.
+    </div>
+    {{else if eq .Agent.Template "admin"}}
+    <div class="alert alert-error" style="padding: 6px 10px; font-size: 12px; margin-bottom: 12px;">
+      Full system access with wildcard permissions. All actions are still audited.
+    </div>
+    {{end}}
+
+    {{if .CanEdit}}
+    <details style="margin-top: 8px;">
+      <summary style="cursor: pointer; font-weight: 500; font-size: 13px; color: var(--primary);">Change Tier</summary>
+      <form method="POST" action="/agents/{{.Agent.ID}}/permissions/tier" style="margin-top: 12px; max-width: 420px;">
+        <div class="form-group" style="margin-bottom: 10px;">
+          <label for="template">New Tier</label>
+          <select name="template" id="template" class="form-select" onchange="permTierChanged(this)">
+            {{range .Templates}}
+            <option value="{{.Name}}" {{if eq .Name $.Agent.Template}}selected{{end}}>{{.Name}} &mdash; {{.Description}}</option>
+            {{end}}
+          </select>
+        </div>
+
+        <div id="tier-acknowledge" style="display: none; margin-bottom: 10px;">
+          <label style="display: flex; align-items: center; gap: 6px; font-size: 13px; cursor: pointer;">
+            <input type="checkbox" name="acknowledged" value="true">
+            I understand this agent will have elevated access
+          </label>
+        </div>
+
+        <div id="tier-confirm-name" style="display: none; margin-bottom: 10px;">
+          <div class="form-group">
+            <label for="confirm_name">Type agent name to confirm: <strong>{{.Agent.Name}}</strong></label>
+            <input type="text" name="confirm_name" id="confirm_name" class="form-input" placeholder="{{.Agent.Name}}">
+          </div>
+        </div>
+
+        <button type="submit" class="btn btn-sm btn-primary">Change Tier</button>
+      </form>
+    </details>
+    {{end}}
+  </div>
+</div>
+
+<!-- Effective Capabilities Matrix -->
+<div class="card" style="margin-bottom: 20px;">
+  <div class="card-header">
+    <h3>Effective Capabilities</h3>
+  </div>
+  <div class="card-body">
+    <div style="display: flex; gap: 16px; flex-wrap: wrap; margin-bottom: 16px; font-size: 12px;">
+      <span><span class="perm-legend perm-template"></span> Template</span>
+      <span><span class="perm-legend perm-grant"></span> Override (grant)</span>
+      <span><span class="perm-legend perm-deny"></span> Override (deny)</span>
+      <span><span class="perm-legend perm-none"></span> Not granted</span>
+    </div>
+    {{range .Matrix}}
+    <div style="margin-bottom: 12px;">
+      <div style="font-weight: 500; font-size: 13px; margin-bottom: 6px;">{{.Tool}}</div>
+      <div style="display: flex; gap: 6px; flex-wrap: wrap;">
+        {{range .Cells}}
+        <span class="perm-cell perm-{{.Source}}" title="{{.Tool}}.{{.Action}}: {{.Source}}" style="padding: 4px 10px; width: auto; font-size: 12px;">
+          {{.Action}} {{if eq .Source "template"}}&#10003;{{else if eq .Source "override_grant"}}&#10003;{{else if eq .Source "override_deny"}}&#10007;{{else}}&mdash;{{end}}
+        </span>
+        {{end}}
+      </div>
+    </div>
+    {{end}}
+  </div>
+</div>
+
+{{if .CanEdit}}
+<!-- Override Editor -->
+<div class="card" style="margin-bottom: 20px;">
+  <div class="card-header">
+    <h3>Override Editor</h3>
+  </div>
+  <div class="card-body">
+    <p style="font-size: 12px; color: var(--text-secondary); margin-bottom: 16px;">Click cells to cycle: none &rarr; grant &rarr; deny &rarr; none. Changes are not saved until you click Save.</p>
+    <form method="POST" action="/agents/{{.Agent.ID}}/permissions/overrides" id="override-form">
+      {{range .Matrix}}
+      <div style="margin-bottom: 12px;">
+        <div style="font-weight: 500; font-size: 13px; margin-bottom: 6px;">{{.Tool}}</div>
+        <div style="display: flex; gap: 6px; flex-wrap: wrap;">
+          {{range .Cells}}
+          <div class="perm-cell-wrap">
+            <span class="perm-cell perm-editor-cell perm-{{if eq .Source "override_grant"}}grant{{else if eq .Source "override_deny"}}deny{{else}}none{{end}}"
+                  data-tool="{{.Tool}}" data-action="{{.Action}}"
+                  data-state="{{if eq .Source "override_grant"}}grant{{else if eq .Source "override_deny"}}deny{{else}}none{{end}}"
+                  onclick="permCycleCellState(this)"
+                  title="Click to cycle: none / grant / deny"
+                  style="padding: 4px 10px; width: auto; font-size: 12px; cursor: pointer;">
+              {{.Action}} {{if eq .Source "override_grant"}}&#10003;{{else if eq .Source "override_deny"}}&#10007;{{else}}&mdash;{{end}}
+            </span>
+            {{if eq .Source "override_grant"}}
+            <input type="hidden" name="override_{{.Tool}}_{{.Action}}" value="grant">
+            {{else if eq .Source "override_deny"}}
+            <input type="hidden" name="override_{{.Tool}}_{{.Action}}" value="deny">
+            {{end}}
+          </div>
+          {{end}}
+        </div>
+      </div>
+      {{end}}
+      <div style="margin-top: 12px; display: flex; gap: 8px;">
+        <button type="submit" class="btn btn-sm btn-primary">Save Overrides</button>
+        <button type="button" class="btn btn-sm" onclick="window.location.reload()">Reset</button>
+      </div>
+    </form>
+  </div>
+</div>
+{{end}}
+
+<!-- Path-Based Permissions -->
+{{if or (eq .Agent.Template "operator") (eq .Agent.Template "admin")}}
+<div class="card" style="margin-bottom: 20px;">
+  <div class="card-header">
+    <h3>Path &amp; Network Access</h3>
+  </div>
+  <div class="card-body">
+    {{if .CanEdit}}
+    <form method="POST" action="/agents/{{.Agent.ID}}/permissions/paths">
+      <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px;">
+        <div class="form-group">
+          <label for="read_paths">Read Paths</label>
+          <textarea name="read_paths" id="read_paths" class="form-textarea" rows="4" placeholder="/home/user/data&#10;/var/log">{{if .Agent.HostPaths}}{{range .Agent.HostPaths.Read}}{{.}}
+{{end}}{{end}}</textarea>
+        </div>
+        <div class="form-group">
+          <label for="write_paths">Write Paths</label>
+          <textarea name="write_paths" id="write_paths" class="form-textarea" rows="4" placeholder="/tmp/agent-output">{{if .Agent.HostPaths}}{{range .Agent.HostPaths.Write}}{{.}}
+{{end}}{{end}}</textarea>
+        </div>
+        <div class="form-group">
+          <label for="deny_paths">Deny Paths</label>
+          <textarea name="deny_paths" id="deny_paths" class="form-textarea" rows="4" placeholder="/etc/shadow&#10;/root">{{if .Agent.HostPaths}}{{range .Agent.HostPaths.Deny}}{{.}}
+{{end}}{{end}}</textarea>
+        </div>
+      </div>
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 12px;">
+        <div class="form-group">
+          <label for="http_allowed_hosts">HTTP Allowed Hosts</label>
+          <textarea name="http_allowed_hosts" id="http_allowed_hosts" class="form-textarea" rows="3" placeholder="api.example.com&#10;*.internal.net">{{range .Agent.HTTPAllowedHosts}}{{.}}
+{{end}}</textarea>
+        </div>
+        <div class="form-group">
+          <label for="shell_allowed_commands">Shell Allowed Commands</label>
+          <textarea name="shell_allowed_commands" id="shell_allowed_commands" class="form-textarea" rows="3" placeholder="git&#10;npm&#10;make">{{range .Agent.ShellAllowedCommands}}{{.}}
+{{end}}</textarea>
+        </div>
+      </div>
+      <div style="margin-top: 12px;">
+        <button type="submit" class="btn btn-sm btn-primary">Save Paths</button>
+      </div>
+    </form>
+    {{else}}
+    <div style="font-size: 13px;">
+      {{if .Agent.HostPaths}}
+      {{if .Agent.HostPaths.Read}}<div style="margin-bottom: 6px;"><strong>Read:</strong> {{range .Agent.HostPaths.Read}}<code style="margin-right: 4px;">{{.}}</code>{{end}}</div>{{end}}
+      {{if .Agent.HostPaths.Write}}<div style="margin-bottom: 6px;"><strong>Write:</strong> {{range .Agent.HostPaths.Write}}<code style="margin-right: 4px;">{{.}}</code>{{end}}</div>{{end}}
+      {{if .Agent.HostPaths.Deny}}<div style="margin-bottom: 6px;"><strong>Deny:</strong> {{range .Agent.HostPaths.Deny}}<code style="margin-right: 4px;">{{.}}</code>{{end}}</div>{{end}}
+      {{else}}
+      <span style="color: var(--text-muted);">No path-based permissions configured.</span>
+      {{end}}
+      {{if .Agent.HTTPAllowedHosts}}<div style="margin-top: 8px;"><strong>HTTP Hosts:</strong> {{range .Agent.HTTPAllowedHosts}}<code style="margin-right: 4px;">{{.}}</code>{{end}}</div>{{end}}
+      {{if .Agent.ShellAllowedCommands}}<div style="margin-top: 8px;"><strong>Shell Commands:</strong> {{range .Agent.ShellAllowedCommands}}<code style="margin-right: 4px;">{{.}}</code>{{end}}</div>{{end}}
+    </div>
+    {{end}}
+  </div>
+</div>
+{{end}}
+
+<!-- Permission Audit Trail -->
+{{if .AuditEntries}}
+<div class="card" style="margin-bottom: 20px;">
+  <div class="card-header">
+    <h3>Recent Audit Trail</h3>
+  </div>
+  <div class="card-body" style="overflow-x: auto;">
+    <table class="table" style="font-size: 12px;">
+      <thead>
+        <tr>
+          <th>Timestamp</th>
+          <th>Action</th>
+          <th>Details</th>
+        </tr>
+      </thead>
+      <tbody>
+        {{range .AuditEntries}}
+        <tr>
+          <td>{{localTime .Timestamp "2006-01-02 15:04:05"}}</td>
+          <td><code>{{.Action}}</code></td>
+          <td style="max-width: 400px; word-break: break-word;">{{.Details}}</td>
+        </tr>
+        {{end}}
+      </tbody>
+    </table>
+  </div>
+</div>
+{{end}}
+
+<script>
+function permTierChanged(select) {
+  var tier = select.value;
+  var ackDiv = document.getElementById('tier-acknowledge');
+  var nameDiv = document.getElementById('tier-confirm-name');
+  if (tier === 'admin') {
+    ackDiv.style.display = 'block';
+    nameDiv.style.display = 'block';
+  } else {
+    ackDiv.style.display = 'none';
+    nameDiv.style.display = 'none';
+  }
+}
+
+function permCycleCellState(cell) {
+  var state = cell.getAttribute('data-state');
+  var tool = cell.getAttribute('data-tool');
+  var action = cell.getAttribute('data-action');
+  var inputName = 'override_' + tool + '_' + action;
+  var td = cell.parentElement;
+
+  // Remove existing hidden input.
+  var existing = td.querySelector('input[name="' + inputName + '"]');
+  if (existing) existing.remove();
+
+  // Cycle: none -> grant -> deny -> none
+  var newState, symbol;
+  if (state === 'none') {
+    newState = 'grant';
+    symbol = '\u2713';
+  } else if (state === 'grant') {
+    newState = 'deny';
+    symbol = '\u2717';
+  } else {
+    newState = 'none';
+    symbol = '\u2014';
+  }
+
+  cell.setAttribute('data-state', newState);
+  cell.className = 'perm-cell perm-editor-cell perm-' + newState;
+  cell.innerHTML = symbol;
+
+  // Add hidden input for grant/deny.
+  if (newState !== 'none') {
+    var input = document.createElement('input');
+    input.type = 'hidden';
+    input.name = inputName;
+    input.value = newState;
+    td.appendChild(input);
+  }
+}
+</script>
+{{end}}

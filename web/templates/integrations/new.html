@@ -1,0 +1,154 @@
+{{define "integrations-new"}}
+<div class="page-header">
+  <div>
+    <h2>Create Custom Integration</h2>
+    <p>Build a new integration template with REST API endpoints</p>
+  </div>
+  <a href="/integrations" class="btn btn-secondary">Back to Catalog</a>
+</div>
+
+<form method="POST" action="/integrations/new" hx-post="/integrations/new">
+  <!-- Basic Info -->
+  <div class="card mt-2">
+    <div class="card-header"><h3>Basic Information</h3></div>
+    <div class="card-body">
+      <div class="form-group">
+        <label for="name">Integration Name *</label>
+        <input type="text" name="name" id="name" class="form-input" required
+               pattern="[a-z0-9-]+" placeholder="my-service" title="Lowercase letters, numbers, and hyphens only">
+      </div>
+      <div class="form-group">
+        <label for="display_name">Display Name</label>
+        <input type="text" name="display_name" id="display_name" class="form-input" placeholder="My Service">
+      </div>
+      <div class="form-group">
+        <label for="description">Description</label>
+        <textarea name="description" id="description" class="form-textarea" rows="2" placeholder="What this integration does..."></textarea>
+      </div>
+      <div class="form-group">
+        <label for="category">Category</label>
+        <select name="category" id="category" class="form-select">
+          <option value="developer-tools">Developer Tools</option>
+          <option value="communication">Communication</option>
+          <option value="project-management">Project Management</option>
+          <option value="knowledge">Knowledge</option>
+          <option value="calendar">Calendar</option>
+          <option value="crm">CRM</option>
+          <option value="finance">Finance</option>
+          <option value="personal">Personal</option>
+          <option value="data">Data</option>
+          <option value="security">Security</option>
+          <option value="monitoring">Monitoring</option>
+        </select>
+      </div>
+    </div>
+  </div>
+
+  <!-- Authentication -->
+  <div class="card mt-2">
+    <div class="card-header"><h3>Authentication</h3></div>
+    <div class="card-body">
+      <div class="form-group">
+        <label for="auth_type">Auth Type</label>
+        <select name="auth_type" id="auth_type" class="form-select">
+          <option value="none">None</option>
+          <option value="bearer" selected>Bearer Token</option>
+          <option value="basic">Basic Auth</option>
+          <option value="api_key">API Key</option>
+          <option value="custom_header">Custom Header</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label for="auth_secret_ref">Secret Vault Key</label>
+        <input type="text" name="auth_secret_ref" id="auth_secret_ref" class="form-input" placeholder="e.g., my_service_api_key">
+        <small style="color: var(--text-muted);">The vault key name where the credential will be stored</small>
+      </div>
+      <div class="form-group">
+        <label for="auth_header_name">Header Name (for api_key/custom_header)</label>
+        <input type="text" name="auth_header_name" id="auth_header_name" class="form-input" placeholder="e.g., X-API-Key">
+      </div>
+      <div class="form-group">
+        <label for="auth_param_name">Query Param Name (for api_key)</label>
+        <input type="text" name="auth_param_name" id="auth_param_name" class="form-input" placeholder="e.g., api_key">
+      </div>
+    </div>
+  </div>
+
+  <!-- Endpoints -->
+  <div class="card mt-2">
+    <div class="card-header">
+      <h3>Endpoints</h3>
+    </div>
+    <div class="card-body" id="endpoints-container">
+      <div class="endpoint-row" style="border: 1px solid var(--border-color); padding: 1rem; border-radius: 4px; margin-bottom: 1rem;">
+        <div style="display: grid; grid-template-columns: 1fr 120px 2fr; gap: 0.5rem; margin-bottom: 0.5rem;">
+          <input type="text" name="ep_name[]" class="form-input" placeholder="Endpoint name" required>
+          <select name="ep_method[]" class="form-select">
+            <option value="GET">GET</option>
+            <option value="POST">POST</option>
+            <option value="PUT">PUT</option>
+            <option value="PATCH">PATCH</option>
+            <option value="DELETE">DELETE</option>
+          </select>
+          <input type="text" name="ep_url[]" class="form-input" placeholder="https://api.example.com/v1/resource" required>
+        </div>
+        <input type="text" name="ep_description[]" class="form-input" placeholder="Description of what this endpoint does">
+      </div>
+    </div>
+    <div style="padding: 0 1rem 1rem;">
+      <button type="button" class="btn btn-secondary" id="add-endpoint-btn">+ Add Endpoint</button>
+    </div>
+  </div>
+
+  <!-- System Prompt -->
+  <div class="card mt-2">
+    <div class="card-header"><h3>System Prompt (Optional)</h3></div>
+    <div class="card-body">
+      <textarea name="system_prompt" class="form-textarea" rows="6"
+                placeholder="Instructions for the agent on how to use this integration..."></textarea>
+    </div>
+  </div>
+
+  <div style="margin-top: 1rem;">
+    <button type="submit" class="btn btn-primary">Create Integration</button>
+    <a href="/integrations" class="btn btn-secondary" style="margin-left: 0.5rem;">Cancel</a>
+  </div>
+</form>
+
+<template id="endpoint-template">
+  <div class="endpoint-row" style="border: 1px solid var(--border-color); padding: 1rem; border-radius: 4px; margin-bottom: 1rem;">
+    <div style="display: grid; grid-template-columns: 1fr 120px 2fr auto; gap: 0.5rem; margin-bottom: 0.5rem;">
+      <input type="text" name="ep_name[]" class="form-input" placeholder="Endpoint name" required>
+      <select name="ep_method[]" class="form-select">
+        <option value="GET">GET</option>
+        <option value="POST">POST</option>
+        <option value="PUT">PUT</option>
+        <option value="PATCH">PATCH</option>
+        <option value="DELETE">DELETE</option>
+      </select>
+      <input type="text" name="ep_url[]" class="form-input" placeholder="https://api.example.com/v1/resource" required>
+      <button type="button" class="btn btn-danger remove-endpoint-btn">X</button>
+    </div>
+    <input type="text" name="ep_description[]" class="form-input" placeholder="Description of what this endpoint does">
+  </div>
+</template>
+
+<script>
+(function() {
+  var addBtn = document.getElementById('add-endpoint-btn');
+  var container = document.getElementById('endpoints-container');
+  var tmpl = document.getElementById('endpoint-template');
+
+  addBtn.addEventListener('click', function() {
+    var clone = tmpl.content.cloneNode(true);
+    container.appendChild(clone);
+  });
+
+  container.addEventListener('click', function(e) {
+    if (e.target.classList.contains('remove-endpoint-btn')) {
+      e.target.closest('.endpoint-row').remove();
+    }
+  });
+})();
+</script>
+{{end}}

@@ -1,0 +1,21 @@
+name: report-builder
+version: "1.0.0"
+description: Structured report generation with data integrity and output conventions
+author: kyvik
+license: Apache-2.0
+required_tools:
+  - file
+  - memory
+required_capabilities:
+  - tool: filesystem
+    action: read
+    resource: "*"
+  - tool: filesystem
+    action: write
+    resource: "*"
+  - tool: memory
+    action: read
+    resource: "*"
+  - tool: memory
+    action: write
+    resource: "*"

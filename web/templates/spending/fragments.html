@@ -1,0 +1,95 @@
+{{define "spending-agent-row"}}
+<tr id="spending-row-{{.AgentID}}">
+  <td>
+    <a href="/agents/{{.AgentID}}">{{.AgentName}}</a>
+  </td>
+  <td>
+    {{with .Budget}}
+    <div style="display: flex; align-items: center; gap: 8px;">
+      <span class="text-mono">${{printf "%.4f" .DailyUsed}}{{if gt .DailyLimit 0.0}} / ${{printf "%.2f" .DailyLimit}}{{end}}</span>
+    </div>
+    {{if gt .DailyLimit 0.0}}
+    <div class="progress-bar mt-1" style="max-width: 150px;">
+      <div class="progress-fill" style="width: {{pctf .DailyUsed .DailyLimit}}%;"></div>
+    </div>
+    {{end}}
+    {{else}}
+    <span class="text-mono">$0.00</span>
+    {{end}}
+  </td>
+  <td>
+    {{with .Budget}}
+    <div style="display: flex; align-items: center; gap: 8px;">
+      <span class="text-mono">${{printf "%.4f" .MonthlyUsed}}{{if gt .MonthlyLimit 0.0}} / ${{printf "%.2f" .MonthlyLimit}}{{end}}</span>
+    </div>
+    {{if gt .MonthlyLimit 0.0}}
+    <div class="progress-bar mt-1" style="max-width: 150px;">
+      <div class="progress-fill" style="width: {{pctf .MonthlyUsed .MonthlyLimit}}%;"></div>
+    </div>
+    {{end}}
+    {{else}}
+    <span class="text-mono">$0.00</span>
+    {{end}}
+  </td>
+  <td>
+    {{with .Budget}}
+    <span class="text-mono">{{.TokensToday}}</span>
+    {{else}}
+    <span class="text-mono">0</span>
+    {{end}}
+  </td>
+  <td>
+    {{if eq .AlertLevel "red"}}
+    <span class="badge badge-error">Over Budget</span>
+    {{else if eq .AlertLevel "yellow"}}
+    <span class="badge badge-warning">High Usage</span>
+    {{else}}
+    <span class="badge badge-running">OK</span>
+    {{end}}
+  </td>
+  {{if .CanAdjust}}
+  <td>
+    <button class="btn btn-sm" onclick="this.style.display='none'; this.nextElementSibling.style.display='flex'">Edit</button>
+    <form style="display:none; gap: 4px; align-items: center;"
+      hx-post="/spending/limits/{{.AgentID}}"
+      hx-target="#spending-row-{{.AgentID}}"
+      hx-swap="outerHTML">
+      <input type="number" name="max_spend_per_day" placeholder="$/day" step="0.01"
+        {{with .Budget}}value="{{printf "%.2f" .DailyLimit}}"{{end}}
+        style="width: 70px;" class="form-input">
+      <input type="number" name="max_spend_per_month" placeholder="$/mo" step="0.01"
+        {{with .Budget}}value="{{printf "%.2f" .MonthlyLimit}}"{{end}}
+        style="width: 70px;" class="form-input">
+      <button type="submit" class="btn btn-primary btn-sm">Save</button>
+    </form>
+  </td>
+  {{end}}
+</tr>
+{{end}}
+
+{{define "spending-provider-detail"}}
+{{if .Rows}}
+<table class="table" style="margin: 0; font-size: 0.85em;">
+  <thead>
+    <tr>
+      <th>Agent</th>
+      <th>Tokens</th>
+      <th>Cost</th>
+      <th>Requests</th>
+    </tr>
+  </thead>
+  <tbody>
+    {{range .Rows}}
+    <tr>
+      <td><a href="/agents/{{.AgentID}}">{{.AgentName}}</a></td>
+      <td>{{.TotalTokens}}</td>
+      <td>${{printf "%.4f" .TotalCost}}</td>
+      <td>{{.RequestCount}}</td>
+    </tr>
+    {{end}}
+  </tbody>
+</table>
+{{else}}
+<p style="padding: 0.5rem; color: var(--text-secondary); margin: 0;">No usage data for this provider.</p>
+{{end}}
+{{end}}

@@ -1,0 +1,93 @@
+{{define "cluster-list"}}
+<div class="page-header">
+  <div>
+    <h2>Cluster</h2>
+    <p>Manage cluster nodes and agent placement</p>
+  </div>
+</div>
+
+{{if .Nodes}}
+<div style="display: flex; gap: 12px; margin-bottom: 24px; flex-wrap: wrap;">
+  <div class="card" style="flex: 1; min-width: 140px; padding: 16px;">
+    <div style="font-size: 28px; font-weight: 600;">{{.NodeCount}}</div>
+    <div style="color: var(--text-muted); font-size: 13px;">Total Nodes</div>
+  </div>
+  <div class="card" style="flex: 1; min-width: 140px; padding: 16px;">
+    <div style="font-size: 28px; font-weight: 600;">{{if .IsLeader}}This Node{{else}}Remote{{end}}</div>
+    <div style="color: var(--text-muted); font-size: 13px;">Leader Status</div>
+  </div>
+</div>
+
+<div class="card" style="padding: 0;">
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Node</th>
+          <th>Status</th>
+          <th>Address</th>
+          <th>Agents</th>
+          <th>Version</th>
+          <th>Labels</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {{range .Nodes}}
+        <tr>
+          <td>
+            <strong>{{.NodeName}}</strong>
+            {{if .IsLeader}}<span class="badge badge-running" style="margin-left: 6px;">leader</span>{{end}}
+            {{if eq .NodeID $.CurrentNodeID}}<span class="badge badge-info" style="margin-left: 4px;">this node</span>{{end}}
+            <br><span style="color: var(--text-muted); font-size: 12px; font-family: var(--font-mono);">{{.NodeID}}</span>
+          </td>
+          <td>
+            {{if eq .Status "active"}}
+              <span class="badge badge-running">active</span>
+            {{else if eq .Status "draining"}}
+              <span class="badge badge-warning">draining</span>
+            {{else if eq .Status "drained"}}
+              <span class="badge badge-stopped">drained</span>
+            {{else if eq .Status "joining"}}
+              <span class="badge badge-info">joining</span>
+            {{else if eq .Status "disconnected"}}
+              <span class="badge badge-error">disconnected</span>
+            {{else}}
+              <span class="badge">{{.Status}}</span>
+            {{end}}
+          </td>
+          <td><code style="font-family: var(--font-mono); font-size: 13px;">{{if .Address}}{{.Address}}{{else}}&mdash;{{end}}</code></td>
+          <td>{{.Capacity.AgentCount}}{{if .Capacity.MaxAgents}} / {{.Capacity.MaxAgents}}{{end}}</td>
+          <td style="font-size: 13px; color: var(--text-secondary);">{{if .Version}}{{.Version}}{{else}}&mdash;{{end}}</td>
+          <td>
+            {{if .Labels}}
+              {{range $k, $v := .Labels}}
+                <span class="badge badge-reader" style="margin-right: 4px;">{{$k}}={{$v}}</span>
+              {{end}}
+            {{else}}
+              <span style="color: var(--text-muted);">&mdash;</span>
+            {{end}}
+          </td>
+          <td>
+            {{if eq .Status "active"}}
+              <button class="btn btn-sm"
+                      hx-post="/cluster/{{.NodeID}}/drain"
+                      hx-confirm="Drain node '{{.NodeName}}'? All agents will be reassigned to other nodes."
+                      hx-target="body">Drain</button>
+            {{else}}
+              <span style="color: var(--text-muted);">&mdash;</span>
+            {{end}}
+          </td>
+        </tr>
+        {{end}}
+      </tbody>
+    </table>
+  </div>
+</div>
+{{else}}
+<div class="empty-state">
+  <h3>No cluster nodes</h3>
+  <p>Clustering is not active or no nodes have registered.</p>
+</div>
+{{end}}
+{{end}}

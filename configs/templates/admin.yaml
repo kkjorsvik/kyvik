@@ -1,0 +1,10 @@
+# Admin Permission Template
+# Full system access including host filesystem. Requires elevated confirmation.
+
+name: admin
+description: "Full system access. All capabilities granted including host filesystem. Requires elevated confirmation."
+
+capabilities:
+  - tool: "*"
+    action: "*"
+    resource: "*"

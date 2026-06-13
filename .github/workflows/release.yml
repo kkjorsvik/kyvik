@@ -1,0 +1,61 @@
+name: Release
+
+on:
+  release:
+    types: [created]
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    env:
+      CGO_ENABLED: "0"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Build binaries
+        env:
+          GOOS: linux
+          GOARCH: amd64
+          VERSION: ${{ github.ref_name }}
+          COMMIT: ${{ github.sha }}
+        run: |
+          DATE="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          GO_FLAGS="-ldflags \"-X main.version=${VERSION} -X main.commit=${COMMIT} -X main.date=${DATE}\""
+
+          mkdir -p dist/bin
+          eval go build ${GO_FLAGS} -o dist/bin/kyvik ./cmd/kyvik
+          eval go build ${GO_FLAGS} -o dist/bin/kyvik-sandbox ./cmd/kyvik-sandbox
+
+      - name: Package release archive
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          ARCHIVE_DIR="kyvik-${TAG}-linux-amd64"
+          mkdir -p "${ARCHIVE_DIR}/bin" "${ARCHIVE_DIR}/web"
+
+          cp dist/bin/kyvik dist/bin/kyvik-sandbox "${ARCHIVE_DIR}/bin/"
+          cp -r configs "${ARCHIVE_DIR}/configs"
+          cp -r migrations "${ARCHIVE_DIR}/migrations"
+          cp -r deploy "${ARCHIVE_DIR}/deploy"
+          cp deploy/setup.sh "${ARCHIVE_DIR}/setup.sh"
+          chmod +x "${ARCHIVE_DIR}/setup.sh"
+          cp -r web/templates "${ARCHIVE_DIR}/web/templates"
+          cp -r web/static "${ARCHIVE_DIR}/web/static"
+
+          tar czf "${ARCHIVE_DIR}.tar.gz" "${ARCHIVE_DIR}"
+          echo "ARCHIVE=${ARCHIVE_DIR}.tar.gz" >> "$GITHUB_ENV"
+
+      - name: Upload release asset
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+        run: gh release upload "$TAG" "$ARCHIVE"

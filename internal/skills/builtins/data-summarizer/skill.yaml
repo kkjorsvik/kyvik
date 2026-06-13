@@ -1,0 +1,18 @@
+name: data-summarizer
+version: "1.0.0"
+description: Transform large inputs into clear, structured summaries with multiple output formats
+author: kyvik
+license: Apache-2.0
+required_tools:
+  - memory
+  - file
+required_capabilities:
+  - tool: memory
+    action: read
+    resource: "*"
+  - tool: memory
+    action: write
+    resource: "*"
+  - tool: filesystem
+    action: read
+    resource: "*"

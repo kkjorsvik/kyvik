@@ -1,0 +1,66 @@
+{{define "card-workers"}}
+<div id="card-workers">
+<div class="card" style="margin-top: 1rem;">
+  <div class="card-header">
+    <h3>Workers</h3>
+    {{if .Agent.Workers.Enabled}}
+    {{if gt .ActiveWorkerCount 0}}<span class="badge badge-running">{{.ActiveWorkerCount}} active</span>{{end}}
+    {{else}}
+    <span class="badge badge-stopped">Disabled</span>
+    {{end}}
+    {{if can .User "agent.edit"}}
+    <button class="btn-edit-section"
+            hx-get="/agents/{{.Agent.ID}}/edit/workers"
+            hx-target="body" hx-swap="beforeend"
+            title="Edit Workers">&#9998;</button>
+    {{end}}
+  </div>
+  <div class="card-body">
+    {{if .Agent.Workers.Enabled}}
+    <div class="form-group" style="margin-bottom: 0;">
+      <label>Config</label>
+      <span class="text-mono">max: {{.Agent.Workers.MaxConcurrent}} | TTL: {{.Agent.Workers.TTLSeconds}}s | slot: {{.Agent.Workers.ModelSlot}}</span>
+    </div>
+    {{else}}
+    <p style="color: var(--text-muted);">Task delegation is disabled.</p>
+    {{end}}
+  </div>
+</div>
+</div>
+{{end}}
+
+{{define "modal-workers"}}
+<dialog class="edit-section-dialog">
+  <form hx-post="/agents/{{.Agent.ID}}/edit/workers"
+        hx-target="#card-workers" hx-swap="outerHTML">
+    <div class="dialog-header">
+      <h3>Edit Workers</h3>
+      <button type="button" class="btn-edit-section" onclick="this.closest('dialog').close()" title="Close">&times;</button>
+    </div>
+    <div class="dialog-body">
+      <div class="form-group">
+        <label style="display: flex; align-items: center; gap: 6px; cursor: pointer;">
+          <input type="checkbox" name="workers_enabled" value="true" {{if .Agent.Workers.Enabled}}checked{{end}}>
+          Enabled
+        </label>
+      </div>
+      <div class="form-group">
+        <label for="edit-workers-max">Max Concurrent</label>
+        <input type="number" id="edit-workers-max" name="workers_max_concurrent" class="form-input" value="{{if .Agent.Workers.MaxConcurrent}}{{.Agent.Workers.MaxConcurrent}}{{else}}3{{end}}" min="1">
+      </div>
+      <div class="form-group">
+        <label for="edit-workers-ttl">TTL (seconds)</label>
+        <input type="number" id="edit-workers-ttl" name="workers_ttl_seconds" class="form-input" value="{{if .Agent.Workers.TTLSeconds}}{{.Agent.Workers.TTLSeconds}}{{else}}300{{end}}" min="1">
+      </div>
+      <div class="form-group">
+        <label for="edit-workers-slot">Model Slot</label>
+        <input type="text" id="edit-workers-slot" name="workers_model_slot" class="form-input" value="{{.Agent.Workers.ModelSlot}}">
+      </div>
+    </div>
+    <div class="dialog-footer">
+      <button type="button" class="btn btn-secondary" onclick="this.closest('dialog').close()">Cancel</button>
+      <button type="submit" class="btn btn-primary">Save</button>
+    </div>
+  </form>
+</dialog>
+{{end}}

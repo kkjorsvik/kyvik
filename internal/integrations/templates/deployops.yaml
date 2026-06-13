@@ -1,0 +1,83 @@
+name: deployops
+display_name: DeployOps
+description: Deployment management — trigger deploys, check status, rollback, and list recent deployments.
+version: 1.0.0
+category: developer-tools
+icon: deployops
+auth:
+  type: bearer
+  secret_ref: deployops_api_key
+  instructions: |
+    Enter your deployment platform's API key. This template uses a generic REST API
+    pattern compatible with platforms like Railway, Render, Vercel, or custom deploy APIs.
+
+variables:
+  - name: deploy_api_url
+    description: Base URL for your deployment API
+    required: true
+    example: "https://api.deployplatform.com/v1"
+  - name: project_id
+    description: Default project/app ID
+    required: false
+    example: "proj_abc123"
+
+endpoints:
+  - name: deploy_trigger
+    description: Trigger a new deployment
+    method: POST
+    url: "{{.deploy_api_url}}/projects/{{.project_id}}/deployments"
+    headers:
+      Content-Type: application/json
+    body_template: |
+      {"branch":"{{or .branch \"main\"}}","environment":"{{or .environment \"production\"}}"}
+    parameters:
+      - name: branch
+        description: Git branch to deploy
+        required: false
+        default: "main"
+      - name: environment
+        description: Target environment
+        required: false
+        default: "production"
+    rate_limit_rpm: 5
+    timeout_seconds: 30
+
+  - name: deploy_status
+    description: Get status of a deployment
+    method: GET
+    url: "{{.deploy_api_url}}/projects/{{.project_id}}/deployments/{{.deployment_id}}"
+    parameters:
+      - name: deployment_id
+        description: Deployment ID to check
+        required: true
+    rate_limit_rpm: 30
+    timeout_seconds: 15
+
+  - name: deploy_rollback
+    description: Rollback to a previous deployment
+    method: POST
+    url: "{{.deploy_api_url}}/projects/{{.project_id}}/deployments/{{.deployment_id}}/rollback"
+    headers:
+      Content-Type: application/json
+    body_template: "{}"
+    parameters:
+      - name: deployment_id
+        description: Deployment ID to rollback
+        required: true
+    rate_limit_rpm: 5
+    timeout_seconds: 30
+
+  - name: deploy_list
+    description: List recent deployments
+    method: GET
+    url: "{{.deploy_api_url}}/projects/{{.project_id}}/deployments"
+    query_params:
+      limit: "{{or .limit 10}}"
+    parameters:
+      - name: limit
+        description: Max deployments to return
+        required: false
+        default: "10"
+    rate_limit_rpm: 20
+    timeout_seconds: 15
+    cache_ttl_seconds: 30

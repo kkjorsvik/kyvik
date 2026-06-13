@@ -1,0 +1,173 @@
+{{define "card-channels"}}
+<div class="card" id="card-channels">
+  <div class="card-header">
+    <h3>Channels</h3>
+    {{if can .User "agent.edit"}}
+    <button class="btn-edit-section"
+            hx-get="/agents/{{.Agent.ID}}/edit/channels"
+            hx-target="body" hx-swap="beforeend"
+            title="Edit Channels">&#9998;</button>
+    {{end}}
+  </div>
+  <div class="card-body">
+    <div class="form-group" style="margin-bottom: 12px;">
+      <label>Web UI</label>
+      {{if .Agent.WebUIEnabled}}<span class="badge badge-running">Enabled</span>{{else}}<span class="badge badge-stopped">Disabled</span>{{end}}
+    </div>
+    <div class="form-group" style="margin-bottom: 12px;">
+      <label>Slack</label>
+      {{if eq .Agent.SlackMode "dedicated"}}
+        <span class="badge badge-info">Dedicated</span>
+        {{if .Agent.SlackChannel}}<span class="text-mono" style="margin-left: 8px;">{{.Agent.SlackChannel}}</span>{{end}}
+      {{else if eq .Agent.SlackMode "primary"}}
+        <span class="badge badge-default">Shared</span>
+        {{if .Agent.SlackChannel}}<span class="text-mono" style="margin-left: 8px;">{{.Agent.SlackChannel}}</span>{{end}}
+      {{else}}
+        <span style="color: var(--text-muted);">Not configured</span>
+      {{end}}
+    </div>
+    <div class="form-group" style="margin-bottom: 12px;">
+      <label>Discord</label>
+      {{if eq .Agent.DiscordMode "dedicated"}}
+        <span class="badge badge-info">Dedicated</span>
+        {{if .Agent.DiscordChannelID}}<span class="text-mono" style="margin-left: 8px;">{{.Agent.DiscordChannelID}}</span>{{end}}
+      {{else if eq .Agent.DiscordMode "primary"}}
+        <span class="badge badge-default">Shared</span>
+        {{if .Agent.DiscordChannelID}}<span class="text-mono" style="margin-left: 8px;">{{.Agent.DiscordChannelID}}</span>{{end}}
+      {{else}}
+        <span style="color: var(--text-muted);">Not configured</span>
+      {{end}}
+      {{if and (ne .Agent.DiscordMode "none") (ne .Agent.DiscordMode "")}}
+        {{if eq .Agent.DiscordAuthMode "restricted"}}
+          <span class="badge badge-warning" style="margin-left: 8px;">Auth: Restricted</span>
+        {{else}}
+          <span class="badge badge-default" style="margin-left: 8px;">Auth: Open</span>
+        {{end}}
+        {{if can .User "agent.edit"}}
+        <a href="/agents/{{.Agent.ID}}/discord-auth" class="btn btn-sm btn-secondary" style="margin-left: 8px;">Discord Auth</a>
+        {{end}}
+      {{end}}
+    </div>
+    {{if eq .Status "running"}}
+    <a href="/agents/{{.Agent.ID}}/chat" class="btn btn-primary btn-sm">Open Chat</a>
+    {{end}}
+  </div>
+</div>
+{{end}}
+
+{{define "modal-channels"}}
+<dialog class="edit-section-dialog">
+  <form hx-post="/agents/{{.Agent.ID}}/edit/channels"
+        hx-target="#card-channels" hx-swap="outerHTML">
+    <div class="dialog-header">
+      <h3>Edit Channels</h3>
+      <button type="button" class="btn-edit-section" onclick="this.closest('dialog').close()" title="Close">&times;</button>
+    </div>
+    <div class="dialog-body">
+      <div class="form-group">
+        <label>
+          <input type="checkbox" name="webui_enabled" value="true" {{if .Agent.WebUIEnabled}}checked{{end}}>
+          Web UI Enabled
+        </label>
+      </div>
+      <div class="form-group">
+        <label>Slack Mode</label>
+        <div style="display: flex; gap: 16px; margin-top: 4px;">
+          <label style="font-weight: normal;">
+            <input type="radio" name="slack_mode" value="none" {{if or (eq .Agent.SlackMode "") (eq .Agent.SlackMode "none")}}checked{{end}}
+                   onchange="document.getElementById('slack-primary-fields').style.display='none'; document.getElementById('slack-dedicated-fields').style.display='none';">
+            None
+          </label>
+          <label style="font-weight: normal;">
+            <input type="radio" name="slack_mode" value="primary" {{if eq .Agent.SlackMode "primary"}}checked{{end}}
+                   onchange="document.getElementById('slack-primary-fields').style.display='block'; document.getElementById('slack-dedicated-fields').style.display='none';">
+            Shared (Primary)
+          </label>
+          <label style="font-weight: normal;">
+            <input type="radio" name="slack_mode" value="dedicated" {{if eq .Agent.SlackMode "dedicated"}}checked{{end}}
+                   onchange="document.getElementById('slack-primary-fields').style.display='block'; document.getElementById('slack-dedicated-fields').style.display='block';">
+            Dedicated
+          </label>
+        </div>
+      </div>
+      <div id="slack-primary-fields" style="{{if or (eq .Agent.SlackMode "primary") (eq .Agent.SlackMode "dedicated")}}display: block;{{else}}display: none;{{end}}">
+        <div class="form-group">
+          <label for="edit-channels-slack-channel">Slack Channel</label>
+          <input type="text" id="edit-channels-slack-channel" name="slack_channel" class="form-input" value="{{.Agent.SlackChannel}}" placeholder="e.g. #general or C01234ABCDE">
+        </div>
+      </div>
+      <div id="slack-dedicated-fields" style="{{if eq .Agent.SlackMode "dedicated"}}display: block;{{else}}display: none;{{end}}">
+        <div class="form-group">
+          <label for="edit-channels-slack-bot-token">Slack Bot Token</label>
+          <input type="password" id="edit-channels-slack-bot-token" name="slack_bot_token" class="form-input" placeholder="xoxb-...">
+        </div>
+        <div class="form-group">
+          <label for="edit-channels-slack-app-token">Slack App Token</label>
+          <input type="password" id="edit-channels-slack-app-token" name="slack_app_token" class="form-input" placeholder="xapp-...">
+        </div>
+        <div class="form-group">
+          <label for="edit-channels-slack-signing-secret">Slack Signing Secret</label>
+          <input type="password" id="edit-channels-slack-signing-secret" name="slack_signing_secret" class="form-input" placeholder="Enter signing secret">
+        </div>
+      </div>
+      <div class="form-group">
+        <label>Discord Mode</label>
+        <div style="display: flex; gap: 16px; margin-top: 4px;">
+          <label style="font-weight: normal;">
+            <input type="radio" name="discord_mode" value="none" {{if or (eq .Agent.DiscordMode "") (eq .Agent.DiscordMode "none")}}checked{{end}}
+                   onchange="document.getElementById('discord-primary-fields').style.display='none'; document.getElementById('discord-dedicated-fields').style.display='none'; document.getElementById('discord-auth-mode-fields').style.display='none';">
+            None
+          </label>
+          <label style="font-weight: normal;">
+            <input type="radio" name="discord_mode" value="primary" {{if eq .Agent.DiscordMode "primary"}}checked{{end}}
+                   onchange="document.getElementById('discord-primary-fields').style.display='block'; document.getElementById('discord-dedicated-fields').style.display='none'; document.getElementById('discord-auth-mode-fields').style.display='block';">
+            Shared (Primary)
+          </label>
+          <label style="font-weight: normal;">
+            <input type="radio" name="discord_mode" value="dedicated" {{if eq .Agent.DiscordMode "dedicated"}}checked{{end}}
+                   onchange="document.getElementById('discord-primary-fields').style.display='block'; document.getElementById('discord-dedicated-fields').style.display='block'; document.getElementById('discord-auth-mode-fields').style.display='block';">
+            Dedicated
+          </label>
+        </div>
+      </div>
+      <div id="discord-primary-fields" style="{{if or (eq .Agent.DiscordMode "primary") (eq .Agent.DiscordMode "dedicated")}}display: block;{{else}}display: none;{{end}}">
+        <div class="form-group">
+          <label for="edit-channels-discord-channel-id">Discord Channel ID</label>
+          <input type="text" id="edit-channels-discord-channel-id" name="discord_channel_id" class="form-input" value="{{.Agent.DiscordChannelID}}" placeholder="e.g. 123456789012345678">
+        </div>
+      </div>
+      <div id="discord-dedicated-fields" style="{{if eq .Agent.DiscordMode "dedicated"}}display: block;{{else}}display: none;{{end}}">
+        <div class="form-group">
+          <label for="edit-channels-discord-bot-token">Discord Bot Token</label>
+          <input type="password" id="edit-channels-discord-bot-token" name="discord_bot_token" class="form-input" placeholder="Bot token">
+        </div>
+      </div>
+      <div id="discord-auth-mode-fields" style="{{if or (eq .Agent.DiscordMode "primary") (eq .Agent.DiscordMode "dedicated")}}display: block;{{else}}display: none;{{end}}">
+        <div class="form-group">
+          <label>Discord User Authorization</label>
+          <div style="display: flex; gap: 16px; margin-top: 4px;">
+            <label style="font-weight: normal;">
+              <input type="radio" name="discord_auth_mode" value="open" {{if or (eq .Agent.DiscordAuthMode "") (eq .Agent.DiscordAuthMode "open")}}checked{{end}}>
+              Open (anyone can message)
+            </label>
+            <label style="font-weight: normal;">
+              <input type="radio" name="discord_auth_mode" value="restricted" {{if eq .Agent.DiscordAuthMode "restricted"}}checked{{end}}>
+              Restricted (pairing / allowlist)
+            </label>
+          </div>
+          <small style="color: var(--text-muted);">Restricted mode requires Discord users to verify via a pairing code or be added to an allowlist.</small>
+        </div>
+      </div>
+      <div class="form-group">
+        <label for="edit-channels-can-message">Internal Messaging (can_message)</label>
+        <textarea id="edit-channels-can-message" name="can_message" class="form-textarea" rows="4" placeholder="One agent ID per line">{{range .Agent.CanMessage}}{{.}}&#10;{{end}}</textarea>
+        <small style="color: var(--text-muted);">Agent IDs this agent can message, one per line.</small>
+      </div>
+    </div>
+    <div class="dialog-footer">
+      <button type="button" class="btn btn-secondary" onclick="this.closest('dialog').close()">Cancel</button>
+      <button type="submit" class="btn btn-primary">Save</button>
+    </div>
+  </form>
+</dialog>
+{{end}}

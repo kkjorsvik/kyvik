@@ -1,0 +1,402 @@
+{{define "agent-memories"}}
+<div class="page-header">
+  <div>
+    <h2>{{.Agent.Name}} &mdash; Memories</h2>
+    <p>Long-term knowledge that persists across conversations</p>
+  </div>
+  <div style="display: flex; gap: 0.5rem;">
+    {{if and (eq .Tab "active") (can $.User "memory.edit")}}
+    <button class="btn btn-primary btn-sm" onclick="document.getElementById('add-memory-dialog').showModal()">Add Memory</button>
+    {{end}}
+    <a href="/agents" class="btn btn-secondary btn-sm">Back to Agents</a>
+  </div>
+</div>
+
+<div style="display: flex; gap: 0; margin-bottom: 1rem;">
+  <a href="/agents/{{.AgentID}}/memories"
+     class="btn btn-sm {{if eq .Tab "active"}}btn-primary{{else}}btn-secondary{{end}}"
+     style="border-radius: 6px 0 0 6px;">Active</a>
+  <a href="/agents/{{.AgentID}}/memories?tab=archived"
+     class="btn btn-sm {{if eq .Tab "archived"}}btn-primary{{else}}btn-secondary{{end}}"
+     style="border-radius: 0 0 0 0;">Archived</a>
+  <a href="/agents/{{.AgentID}}/memories?tab=review"
+     class="btn btn-sm {{if eq .Tab "review"}}btn-primary{{else}}btn-secondary{{end}}"
+     style="border-radius: 0 6px 6px 0; display: inline-flex; align-items: center; gap: 6px;">
+     Review
+     <span id="review-count-badge" class="badge badge-warning" style="{{if eq .UnreviewedCount 0}}display:none;{{end}}">{{.UnreviewedCount}}</span>
+  </a>
+</div>
+
+<div class="card" style="margin-bottom: 1rem;">
+  <div class="history-toolbar" style="flex-wrap: wrap; gap: 12px;">
+    <form id="memory-filters-form" class="history-filters" hx-get="/agents/{{.AgentID}}/memories/list" hx-target="#memories-table-container" hx-swap="innerHTML" style="flex-wrap: wrap; gap: 12px;">
+      <input type="hidden" name="tab" value="{{.Tab}}">
+      {{if .ShowArchived}}<input type="hidden" name="archived" value="true">{{end}}
+      <div class="history-filter-group">
+        <label for="category-filter" style="font-size: 13px; font-weight: 600;">Category</label>
+        <select id="category-filter" name="category" class="form-select" style="max-width: 180px;">
+          <option value="" {{if eq .Category ""}}selected{{end}}>All Categories</option>
+          <option value="fact" {{if eq .Category "fact"}}selected{{end}}>Fact</option>
+          <option value="decision" {{if eq .Category "decision"}}selected{{end}}>Decision</option>
+          <option value="context" {{if eq .Category "context"}}selected{{end}}>Context</option>
+          <option value="instruction" {{if eq .Category "instruction"}}selected{{end}}>Instruction</option>
+        </select>
+      </div>
+      {{if ne .Tab "review"}}
+      <div class="history-filter-group">
+        <label for="source-filter" style="font-size: 13px; font-weight: 600;">Source</label>
+        <select id="source-filter" name="source" class="form-select" style="max-width: 180px;">
+          <option value="" {{if eq .Source ""}}selected{{end}}>All Sources</option>
+          <option value="agent" {{if eq .Source "agent"}}selected{{end}}>Agent</option>
+          <option value="user" {{if eq .Source "user"}}selected{{end}}>User</option>
+          <option value="auto" {{if eq .Source "auto"}}selected{{end}}>Auto</option>
+        </select>
+      </div>
+      {{end}}
+      <div class="history-filter-group" style="min-width: 220px;">
+        <label for="search-filter" style="font-size: 13px; font-weight: 600;">Search</label>
+        <input id="search-filter" name="q" class="form-input" type="text" value="{{.SearchQuery}}" placeholder="Semantic search...">
+      </div>
+      <button type="submit" class="btn btn-secondary btn-sm" style="align-self: flex-end;">Apply</button>
+    </form>
+    <div style="margin-left: auto; display: flex; gap: 8px; align-items: flex-end;">
+      {{if eq .Tab "review"}}
+        {{if can $.User "memory.edit"}}
+        <form hx-post="/agents/{{.AgentID}}/memories/review/approve-all" hx-target="#memories-table-container" hx-swap="innerHTML">
+          <input type="hidden" name="tab" value="review">
+          <button class="btn btn-primary btn-sm">Bulk Approve All</button>
+        </form>
+        {{end}}
+      {{else}}
+        <a class="btn btn-secondary btn-sm" href="/agents/{{.AgentID}}/memories/export">Export JSON</a>
+        {{if can $.User "memory.edit"}}
+        <button class="btn btn-secondary btn-sm" onclick="document.getElementById('import-memory-dialog').showModal()">Import JSON</button>
+        {{end}}
+        {{if and (eq .Tab "active") (can $.User "memory.bulk_delete")}}
+        <button class="btn btn-danger btn-sm" hx-post="/agents/{{.AgentID}}/memories/clear" hx-confirm="Clear all memories for this agent? This cannot be undone.">Clear All</button>
+        {{end}}
+      {{end}}
+    </div>
+  </div>
+</div>
+
+<div id="memories-table-container">
+  {{template "memory-table" .}}
+</div>
+
+<dialog id="add-memory-dialog" class="memory-dialog">
+  <div class="card" style="min-width: 320px; max-width: 520px; width: 100%; box-shadow: 0 8px 32px rgba(0,0,0,0.2);">
+    <h3 style="margin-bottom: 16px;">Add Memory</h3>
+    <form hx-post="/agents/{{.AgentID}}/memories" hx-target="#memories-table-container" hx-swap="innerHTML"
+          hx-on::after-request="if(event.detail.successful) document.getElementById('add-memory-dialog').close()">
+      <input type="hidden" name="tab" value="{{.Tab}}">
+      <input type="hidden" name="category" value="{{.Category}}">
+      <input type="hidden" name="source" value="{{.Source}}">
+      <input type="hidden" name="q" value="{{.SearchQuery}}">
+      {{if .ShowArchived}}<input type="hidden" name="archived" value="true">{{end}}
+      <div class="form-group">
+        <label for="add-category">Category</label>
+        <select id="add-category" name="category" class="form-select" required>
+          <option value="fact">Fact</option>
+          <option value="decision">Decision</option>
+          <option value="context">Context</option>
+          <option value="instruction">Instruction</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label for="add-content">Content</label>
+        <textarea id="add-content" name="content" class="form-textarea" rows="4" required placeholder="Enter memory content..."></textarea>
+      </div>
+      <div class="form-group">
+        <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+          <input type="checkbox" name="pinned">
+          Pin this memory
+        </label>
+      </div>
+      <div style="display: flex; gap: 8px; justify-content: flex-end;">
+        <button type="button" class="btn btn-secondary btn-sm" onclick="document.getElementById('add-memory-dialog').close()">Cancel</button>
+        <button type="submit" class="btn btn-primary btn-sm">Save</button>
+      </div>
+    </form>
+  </div>
+</dialog>
+
+<dialog id="edit-memory-dialog" class="memory-dialog">
+  <div class="card" style="min-width: 320px; max-width: 520px; width: 100%; box-shadow: 0 8px 32px rgba(0,0,0,0.2);">
+    <h3 style="margin-bottom: 16px;">Edit Memory</h3>
+    <form id="edit-memory-form" hx-target="#memories-table-container" hx-swap="innerHTML"
+          hx-on::after-request="if(event.detail.successful) document.getElementById('edit-memory-dialog').close()">
+      <input type="hidden" name="tab" value="{{.Tab}}">
+      <input type="hidden" name="category" value="{{.Category}}">
+      <input type="hidden" name="source" value="{{.Source}}">
+      <input type="hidden" name="q" value="{{.SearchQuery}}">
+      {{if .ShowArchived}}<input type="hidden" name="archived" value="true">{{end}}
+      <div class="form-group">
+        <label for="edit-category">Category</label>
+        <select id="edit-category" name="category" class="form-select" required>
+          <option value="fact">Fact</option>
+          <option value="decision">Decision</option>
+          <option value="context">Context</option>
+          <option value="instruction">Instruction</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label for="edit-content">Content</label>
+        <textarea id="edit-content" name="content" class="form-textarea" rows="4" required></textarea>
+      </div>
+      <div class="form-group">
+        <label for="edit-relevance">Relevance Score</label>
+        <input type="number" id="edit-relevance" name="relevance_score" class="form-input" step="0.1" min="0" max="1" value="0.5">
+      </div>
+      <div class="form-group">
+        <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+          <input type="checkbox" id="edit-pinned" name="pinned">
+          Pin this memory
+        </label>
+      </div>
+      <div style="display: flex; gap: 8px; justify-content: flex-end;">
+        <button type="button" class="btn btn-secondary btn-sm" onclick="document.getElementById('edit-memory-dialog').close()">Cancel</button>
+        <button type="submit" class="btn btn-primary btn-sm">Save</button>
+      </div>
+    </form>
+  </div>
+</dialog>
+
+<dialog id="import-memory-dialog" class="memory-dialog">
+  <div class="card" style="min-width: 320px; max-width: 620px; width: 100%; box-shadow: 0 8px 32px rgba(0,0,0,0.2);">
+    <h3 style="margin-bottom: 16px;">Import Memories (JSON)</h3>
+    <form hx-post="/agents/{{.AgentID}}/memories/import" hx-target="#memories-table-container" hx-swap="innerHTML"
+          hx-on::after-request="if(event.detail.successful) document.getElementById('import-memory-dialog').close()">
+      <input type="hidden" name="tab" value="{{.Tab}}">
+      <input type="hidden" name="category" value="{{.Category}}">
+      <input type="hidden" name="source" value="{{.Source}}">
+      <input type="hidden" name="q" value="{{.SearchQuery}}">
+      {{if .ShowArchived}}<input type="hidden" name="archived" value="true">{{end}}
+      <div class="form-group">
+        <label for="import-payload">Paste JSON</label>
+        <textarea id="import-payload" name="payload" class="form-textarea" rows="8" placeholder='[{"category":"fact","content":"..."}]'></textarea>
+      </div>
+      <div style="display: flex; gap: 8px; justify-content: flex-end;">
+        <button type="button" class="btn btn-secondary btn-sm" onclick="document.getElementById('import-memory-dialog').close()">Cancel</button>
+        <button type="submit" class="btn btn-primary btn-sm">Import</button>
+      </div>
+    </form>
+  </div>
+</dialog>
+
+<script>
+function openEditMemory(agentID, memID, category, content, relevance, pinned) {
+  document.getElementById('edit-category').value = category;
+  document.getElementById('edit-content').value = content;
+  document.getElementById('edit-relevance').value = relevance;
+  document.getElementById('edit-pinned').checked = pinned;
+  var form = document.getElementById('edit-memory-form');
+  form.setAttribute('hx-post', '/agents/' + agentID + '/memories/' + memID + '/edit');
+  htmx.process(form);
+  document.getElementById('edit-memory-dialog').showModal();
+}
+
+function toggleMemoryCard(el) {
+  if (el.classList.contains('expanded')) {
+    el.classList.remove('expanded');
+  } else {
+    el.classList.add('expanded');
+  }
+}
+
+function toggleReviewEdit(id) {
+  var panel = document.getElementById('review-edit-' + id);
+  if (!panel) return;
+  panel.classList.toggle('open');
+}
+
+function selectAllMemories(checked) {
+  document.querySelectorAll('input[name="memory_id"]').forEach(function(cb) {
+    cb.checked = checked;
+  });
+}
+
+function bulkActionChanged(selectEl) {
+  var cat = document.getElementById('bulk-category');
+  if (!cat) return;
+  if (selectEl.value === 'category') {
+    cat.style.display = 'inline-flex';
+  } else {
+    cat.style.display = 'none';
+  }
+}
+</script>
+{{end}}
+
+{{define "memory-table"}}
+
+<span id="review-count-badge" hx-swap-oob="true" class="badge badge-warning" style="{{if eq .UnreviewedCount 0}}display:none;{{end}}">{{.UnreviewedCount}}</span>
+
+{{if .SearchError}}
+<div class="card" style="margin-bottom: 12px; color: var(--danger);">
+  {{.SearchError}}
+</div>
+{{end}}
+
+{{if .Memories}}
+<form id="bulk-memory-form" hx-post="/agents/{{.AgentID}}/memories/bulk" hx-target="#memories-table-container" hx-swap="innerHTML">
+  <input type="hidden" name="tab" value="{{.Tab}}">
+  <input type="hidden" name="category" value="{{.Category}}">
+  <input type="hidden" name="source" value="{{.Source}}">
+  <input type="hidden" name="q" value="{{.SearchQuery}}">
+  {{if .ShowArchived}}<input type="hidden" name="archived" value="true">{{end}}
+
+  {{if and (ne .Tab "review") (can $.User "memory.edit")}}
+  <div class="bulk-actions">
+    <button type="button" class="btn btn-secondary btn-sm" onclick="selectAllMemories(true)">Select All</button>
+    <button type="button" class="btn btn-secondary btn-sm" onclick="selectAllMemories(false)">Deselect All</button>
+    <select name="action" class="form-select" style="max-width: 200px;" onchange="bulkActionChanged(this)">
+      <option value="">Bulk Action</option>
+      <option value="pin">Pin</option>
+      <option value="unpin">Unpin</option>
+      <option value="archive">Archive</option>
+      <option value="unarchive">Unarchive</option>
+      <option value="category">Change Category</option>
+      {{if can $.User "memory.bulk_delete"}}
+      <option value="delete">Delete</option>
+      {{end}}
+    </select>
+    <div id="bulk-category" style="display: none; gap: 8px; align-items: center;">
+      <select name="category" class="form-select" style="max-width: 180px;">
+        <option value="fact">Fact</option>
+        <option value="decision">Decision</option>
+        <option value="context">Context</option>
+        <option value="instruction">Instruction</option>
+      </select>
+    </div>
+    <button type="submit" class="btn btn-primary btn-sm">Apply</button>
+  </div>
+  {{end}}
+
+  <div class="memory-list">
+    {{range .Memories}}
+    <div class="card memory-card {{if .Archived}}archived{{end}}">
+      <div class="memory-card-header">
+        {{if and (ne $.Tab "review") (can $.User "memory.edit")}}
+        <input type="checkbox" name="memory_id" value="{{.ID}}">
+        {{end}}
+        <span class="badge {{if eq .Category "fact"}}badge-reader{{else if eq .Category "decision"}}badge-worker{{else if eq .Category "context"}}badge-running{{else if eq .Category "instruction"}}badge-admin{{end}}">{{.Category}}</span>
+        {{if .Pinned}}<span class="badge badge-info">Pinned</span>{{end}}
+        {{with index $.Scores .ID}}<span class="badge badge-info">Match {{.}}%</span>{{end}}
+        {{if .Archived}}<span class="badge badge-warning">Archived</span>{{end}}
+        <span class="text-mono" style="margin-left: auto; font-size: 12px;">#{{.ID}}</span>
+      </div>
+
+      <div class="memory-content" onclick="toggleMemoryCard(this)">{{.Content}}</div>
+
+      <div class="memory-meta">
+        <span>Source: {{.Source}}</span>
+        <span>Last accessed: {{localTime .AccessedAt "2006-01-02 15:04"}} ({{.AccessCount}}x)</span>
+        <span>Created: {{localTime .CreatedAt "2006-01-02 15:04"}}</span>
+        {{if and (eq $.Tab "review") (eq .Source "auto")}}
+          {{if .SourceChannelID}}
+            <span>Extracted from: <a href="/agents/{{$.AgentID}}/chat2?c={{.SourceChannelID}}">conversation</a></span>
+          {{else}}
+            <span>Extracted from: conversation</span>
+          {{end}}
+        {{end}}
+      </div>
+
+      <div class="memory-actions">
+        {{if eq $.Tab "review"}}
+          {{if can $.User "memory.edit"}}
+          <button type="button" class="btn btn-secondary btn-sm"
+                  hx-post="/agents/{{$.AgentID}}/memories/review/{{.ID}}/approve"
+                  hx-target="#memories-table-container"
+                  hx-swap="innerHTML"
+                  hx-include="#memory-filters-form">Approve</button>
+          <button type="button" class="btn btn-secondary btn-sm" onclick="toggleReviewEdit('{{.ID}}')">Edit & Approve</button>
+          <button type="button" class="btn btn-danger btn-sm"
+                  hx-post="/agents/{{$.AgentID}}/memories/review/{{.ID}}/reject"
+                  hx-target="#memories-table-container"
+                  hx-swap="innerHTML"
+                  hx-include="#memory-filters-form"
+                  hx-confirm="Reject and delete this memory?">Reject</button>
+          {{end}}
+        {{else if .Archived}}
+          {{if can $.User "memory.edit"}}
+          <button type="button" class="btn btn-secondary btn-sm"
+                  hx-post="/agents/{{$.AgentID}}/memories/{{.ID}}/unarchive"
+                  hx-target="#memories-table-container"
+                  hx-swap="innerHTML"
+                  hx-include="#memory-filters-form">Unarchive</button>
+          {{end}}
+        {{else}}
+          {{if can $.User "memory.edit"}}
+          <button type="button" class="btn btn-secondary btn-sm"
+                  hx-post="/agents/{{$.AgentID}}/memories/{{.ID}}/pin"
+                  hx-target="#memories-table-container"
+                  hx-swap="innerHTML"
+                  hx-include="#memory-filters-form">{{if .Pinned}}Unpin{{else}}Pin{{end}}</button>
+          <button type="button" class="btn btn-secondary btn-sm"
+                  data-agent="{{$.AgentID}}" data-id="{{.ID}}" data-category="{{.Category}}" data-content="{{.Content}}" data-relevance="{{.RelevanceScore}}" data-pinned="{{.Pinned}}"
+                  onclick="openEditMemory(this.dataset.agent, this.dataset.id, this.dataset.category, this.dataset.content, this.dataset.relevance, this.dataset.pinned === 'true')">Edit</button>
+          <button type="button" class="btn btn-secondary btn-sm"
+                  hx-post="/agents/{{$.AgentID}}/memories/{{.ID}}/archive"
+                  hx-target="#memories-table-container"
+                  hx-swap="innerHTML"
+                  hx-include="#memory-filters-form">Archive</button>
+          <button type="button" class="btn btn-danger btn-sm"
+                  hx-post="/agents/{{$.AgentID}}/memories/{{.ID}}/delete"
+                  hx-target="#memories-table-container"
+                  hx-swap="innerHTML"
+                  hx-include="#memory-filters-form"
+                  hx-confirm="Delete this memory?">Delete</button>
+          {{end}}
+        {{end}}
+      </div>
+
+      {{if and (eq $.Tab "review") (can $.User "memory.edit")}}
+      <div id="review-edit-{{.ID}}" class="review-edit">
+        <form hx-post="/agents/{{$.AgentID}}/memories/review/{{.ID}}/edit-approve" hx-target="#memories-table-container" hx-swap="innerHTML" hx-include="#memory-filters-form">
+          <div class="form-group">
+            <label>Category</label>
+            <select name="category" class="form-select" style="max-width: 220px;">
+              <option value="fact" {{if eq .Category "fact"}}selected{{end}}>Fact</option>
+              <option value="decision" {{if eq .Category "decision"}}selected{{end}}>Decision</option>
+              <option value="context" {{if eq .Category "context"}}selected{{end}}>Context</option>
+              <option value="instruction" {{if eq .Category "instruction"}}selected{{end}}>Instruction</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Content</label>
+            <textarea name="content" class="form-textarea" rows="3">{{.Content}}</textarea>
+          </div>
+          <button type="submit" class="btn btn-primary btn-sm">Save & Approve</button>
+        </form>
+      </div>
+      {{end}}
+    </div>
+    {{end}}
+  </div>
+</form>
+{{if .HasMore}}
+<div style="text-align: center; padding: 16px;">
+  <button class="btn btn-secondary btn-sm"
+          hx-get="/agents/{{.AgentID}}/memories/list?offset={{.NextOffset}}{{if .Category}}&category={{.Category}}{{end}}{{if .Source}}&source={{.Source}}{{end}}{{if .ShowArchived}}&archived=true{{end}}&tab={{.Tab}}{{if .SearchQuery}}&q={{urlquery .SearchQuery}}{{end}}"
+          hx-target="#memories-table-container"
+          hx-swap="innerHTML">
+    Load More
+  </button>
+</div>
+{{end}}
+{{else}}
+<div class="empty-state" style="padding: 32px 16px;">
+  {{if eq .Tab "review"}}
+  <h3>No unreviewed memories</h3>
+  <p>Auto-extracted memories will appear here for approval.</p>
+  {{else if .ShowArchived}}
+  <h3>No archived memories</h3>
+  <p>Memories that have not been accessed for a while will appear here.</p>
+  {{else}}
+  <h3>No memories yet</h3>
+  <p>Add memories to give this agent persistent knowledge across conversations.</p>
+  {{end}}
+</div>
+{{end}}
+{{end}}

@@ -1,0 +1,15 @@
+name: email-assistant
+version: "1.0.0"
+description: Professional email composition with safety guardrails and inbox management
+author: kyvik
+license: Apache-2.0
+required_tools:
+  - email
+  - memory
+required_capabilities:
+  - tool: memory
+    action: read
+    resource: "*"
+  - tool: memory
+    action: write
+    resource: "*"

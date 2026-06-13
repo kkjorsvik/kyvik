@@ -1,0 +1,68 @@
+{{define "card-obsidian"}}
+{{if .ObsidianEnabled}}
+<div class="card" id="card-obsidian">
+  <div class="card-header">
+    <h3>Obsidian Vaults</h3>
+    {{if can .User "agent.edit"}}
+    <button class="btn-edit-section"
+            hx-get="/agents/{{.Agent.ID}}/edit/obsidian"
+            hx-target="body" hx-swap="beforeend"
+            title="Edit Obsidian Vaults">&#9998;</button>
+    {{end}}
+  </div>
+  <div class="card-body">
+    {{if .Agent.ObsidianVaults}}
+    <div style="display: flex; flex-wrap: wrap; gap: 6px;">
+      {{range .Agent.ObsidianVaults}}
+      <span class="badge badge-info">{{.}}</span>
+      {{end}}
+    </div>
+    {{else}}
+    <p style="color: var(--text-muted);">No Obsidian vaults assigned to this agent.</p>
+    {{end}}
+  </div>
+</div>
+{{end}}
+{{end}}
+
+{{define "modal-obsidian"}}
+<dialog class="edit-section-dialog">
+  <form hx-post="/agents/{{.Agent.ID}}/edit/obsidian"
+        hx-target="#card-obsidian" hx-swap="outerHTML">
+    <div class="dialog-header">
+      <h3>Edit Obsidian Vault Access</h3>
+      <button type="button" class="btn-edit-section" onclick="this.closest('dialog').close()" title="Close">&times;</button>
+    </div>
+    <div class="dialog-body">
+      <p style="color: var(--text-secondary); margin-bottom: 12px; font-size: 13px;">
+        Select which Obsidian vaults this agent can access. Vaults are configured in
+        <a href="/settings?tab=obsidian-vaults" style="color: var(--link-color);">Settings &rarr; Obsidian Vaults</a>.
+      </p>
+      {{if .AvailableVaults}}
+      {{$agentVaults := .Agent.ObsidianVaults}}
+      {{range .AvailableVaults}}
+      {{$vaultName := .Name}}
+      <div class="form-group" style="margin-bottom: 8px;">
+        <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+          <input type="checkbox" name="obsidian_vaults" value="{{.Name}}"
+                 {{range $agentVaults}}{{if eq . $vaultName}}checked{{end}}{{end}}>
+          <span>
+            <strong>{{.Name}}</strong>
+            <span style="color: var(--text-muted); font-size: 12px; margin-left: 8px;">{{.Path}}</span>
+          </span>
+        </label>
+      </div>
+      {{end}}
+      {{else}}
+      <p style="color: var(--text-muted);">
+        No vaults configured yet. <a href="/settings?tab=obsidian-vaults" style="color: var(--link-color);">Add one in Settings.</a>
+      </p>
+      {{end}}
+    </div>
+    <div class="dialog-footer">
+      <button type="button" class="btn btn-secondary" onclick="this.closest('dialog').close()">Cancel</button>
+      <button type="submit" class="btn btn-primary">Save</button>
+    </div>
+  </form>
+</dialog>
+{{end}}

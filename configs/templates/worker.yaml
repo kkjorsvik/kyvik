@@ -1,0 +1,46 @@
+# Worker Permission Template
+# Read and write within defined boundaries. Can create and modify resources.
+
+name: worker
+description: "Read-write access for productive agents. No delete or execute."
+
+capabilities:
+  - tool: filesystem
+    action: read
+    resource: "*"
+  - tool: filesystem
+    action: write
+    resource: "*"
+  - tool: http
+    action: get
+    resource: "*"
+  - tool: http
+    action: post
+    resource: "*"
+  - tool: database
+    action: select
+    resource: "*"
+  - tool: database
+    action: insert
+    resource: "*"
+  - tool: database
+    action: update
+    resource: "*"
+  - tool: github
+    action: read
+    resource: "api.github.com"
+  - tool: github
+    action: issues
+    resource: "api.github.com"
+  - tool: git
+    action: read
+    resource: "*"
+  - tool: git
+    action: write
+    resource: "*"
+  - tool: obsidian
+    action: read
+    resource: "*"
+  - tool: obsidian
+    action: write
+    resource: "*"

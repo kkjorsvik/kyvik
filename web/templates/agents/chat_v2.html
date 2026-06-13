@@ -1,0 +1,113 @@
+{{define "agent-chat-v2"}}
+<link rel="stylesheet" href="/static/vendor/highlight/styles/github-dark.min.css">
+<script src="/static/vendor/marked/marked.min.js"></script>
+<script src="/static/vendor/dompurify/purify.min.js"></script>
+<script src="/static/vendor/highlight/highlight.min.js"></script>
+<script src="/static/vendor/highlight/languages/python.min.js"></script>
+<script src="/static/vendor/highlight/languages/go.min.js"></script>
+<script src="/static/vendor/highlight/languages/bash.min.js"></script>
+<script src="/static/vendor/highlight/languages/sql.min.js"></script>
+<script src="/static/vendor/highlight/languages/yaml.min.js"></script>
+
+<div class="chat-layout">
+  <div class="chat-sidebar" id="chat2-sidebar">
+    <div class="chat-sidebar-header">
+      <button class="btn btn-primary btn-sm chat-new-btn" onclick="window.kyvikChat2StartNew()">
+        + New Chat
+      </button>
+    </div>
+    <div class="chat-sidebar-list" id="chat2-sidebar-list">
+      {{if .Conversations}}
+        {{range .Conversations}}
+        <div class="chat-sidebar-group">
+          <div class="chat-sidebar-group-title">{{.Label}}</div>
+          {{range .Conversations}}
+          <div class="chat-sidebar-entry {{if eq .ID $.ActiveConvID}}active{{end}}"
+               data-conv-id="{{.ID}}"
+               data-conv-title="{{.Title}}"
+               onclick="window.kyvikChat2SwitchConversation('{{.ID}}')">
+            <div class="chat-sidebar-entry-title">{{.Title}}</div>
+          </div>
+          {{end}}
+        </div>
+        {{end}}
+      {{else}}
+      <div class="chat-sidebar-empty">No conversations yet</div>
+      {{end}}
+    </div>
+  </div>
+
+  <div class="chat-main" id="chat-main">
+    <div class="chat-header">
+      <div class="chat-header-left">
+        <button class="btn btn-secondary btn-sm chat-sidebar-toggle" onclick="toggleChatSidebar()">&#9776;</button>
+        <h2>{{.Agent.Name}} <small style="opacity:0.7;">(v2)</small></h2>
+        <span class="badge badge-{{.Status}}">{{.Status}}</span>
+        <span class="badge" id="chat2-conn-badge">connecting</span>
+        {{if .ActiveConv}}
+        <span class="chat-header-title" id="chat2-header-title">{{.ActiveConv.Title}}</span>
+        {{end}}
+        <div class="btn-group" role="group" aria-label="Chat view mode" style="margin-left:8px;">
+          <button type="button" id="chat2-mode-user" class="btn btn-secondary btn-sm">User View</button>
+          <button type="button" id="chat2-mode-debug" class="btn btn-secondary btn-sm">Debug Trace</button>
+        </div>
+      </div>
+      <div style="display:flex; gap:0.5rem;">
+        <a href="/agents/{{.Agent.ID}}/chat/v1{{if .ActiveConvID}}?c={{.ActiveConvID}}{{end}}" class="btn btn-secondary btn-sm">Old Chat</a>
+        <a href="/agents" class="btn btn-secondary btn-sm">Back</a>
+      </div>
+    </div>
+
+    <div class="chat-messages" id="chat2-messages">
+      {{if .Messages}}
+        {{range .Messages}}
+          {{if eq .Role "user"}}
+          <div class="chat-msg chat-msg-user" data-history-id="{{.ID}}">
+            <div class="chat-msg-content">{{.Content}}</div>
+            <div class="chat-msg-time">{{localTime .CreatedAt "15:04"}}</div>
+          </div>
+          {{else if eq .Role "assistant"}}
+          <div class="chat-msg-agent-row" data-history-id="{{.ID}}">
+            <div class="chat-msg-avatar">{{slice $.Agent.Name 0 1}}</div>
+            <div class="chat-msg chat-msg-agent">
+              <div class="chat-msg-content chat-md-content">{{.Content}}</div>
+              <div class="chat-msg-time">{{localTime .CreatedAt "15:04"}}</div>
+            </div>
+          </div>
+          {{end}}
+        {{end}}
+      {{else}}
+      <div class="chat-empty-state">
+        <p>Start a conversation by typing a message below.</p>
+      </div>
+      {{end}}
+    </div>
+
+    <div class="chat-input-wrap">
+      <form class="chat-input" id="chat2-form" {{if ne .Status "running"}}onsubmit="return false;"{{end}}>
+        <input type="hidden" id="chat2-conv-id" value="{{.ActiveConvID}}">
+        <textarea id="chat2-input"
+                  class="chat-textarea"
+                  rows="1"
+                  placeholder="{{if eq .Status "running"}}Type a message...{{else}}Agent is not running{{end}}"
+                  autocomplete="off"
+                  {{if ne .Status "running"}}disabled{{end}}></textarea>
+        <button type="submit" class="btn btn-primary" {{if ne .Status "running"}}disabled{{end}}>Send</button>
+      </form>
+    </div>
+  </div>
+</div>
+
+<script src="/static/js/chat-v2.js"></script>
+<script>
+  function toggleChatSidebar() {
+    document.getElementById('chat2-sidebar').classList.toggle('open');
+  }
+  window.initKyvikChatV2({
+    agentID: "{{.Agent.ID}}",
+    agentName: "{{.Agent.Name}}",
+    conversationID: "{{.ActiveConvID}}",
+    running: {{if eq .Status "running"}}true{{else}}false{{end}}
+  });
+</script>
+{{end}}

@@ -1,0 +1,166 @@
+{{define "dashboard"}}
+{{if .ShowGuideBanner}}
+<div class="card" style="margin-bottom: 1rem; border-left: 4px solid var(--primary);">
+  <div class="card-body" style="display: flex; justify-content: space-between; align-items: center;">
+    <div>
+      <strong>Kyvik Guide Agent</strong>
+      <p style="margin: 4px 0 0; color: var(--text-secondary); font-size: 13px;">Create a built-in guide agent to help navigate Kyvik. It will be created in stopped state.</p>
+    </div>
+    <div style="display: flex; gap: 8px;">
+      <button class="btn btn-sm btn-secondary"
+              hx-post="/guide/dismiss"
+              hx-target="body">Dismiss</button>
+      <button class="btn btn-sm btn-primary"
+              hx-post="/guide/create"
+              hx-target="body">Create Guide</button>
+    </div>
+  </div>
+</div>
+{{end}}
+{{if .EmergencyStop}}
+<div class="alert alert-error" style="display: flex; justify-content: space-between; align-items: center;">
+  <span><strong>Emergency Stop Active.</strong> All agent starts are blocked.</span>
+  <button class="btn btn-sm btn-danger" hx-post="/emergency-stop/clear" hx-target="body">Clear Emergency Stop</button>
+</div>
+{{end}}
+<div class="page-header">
+  <div>
+    <h2>Dashboard</h2>
+    <p>Overview of your agents</p>
+  </div>
+  <div style="display: flex; gap: 8px; align-items: center;">
+    {{if and (can .User "agent.stop") (not .VacationMode) (gt .TotalAgents 0)}}
+    <button class="btn btn-sm btn-warning"
+            onclick="document.getElementById('vacation-dialog').showModal()">Vacation Mode</button>
+    {{end}}
+    {{if and (can .User "agent.kill") (gt .RunningCount 0)}}
+    <button class="btn btn-sm btn-danger"
+            hx-post="/kill-all"
+            hx-confirm="Kill ALL running agents? This will immediately stop all operations."
+            hx-target="body">Kill All Agents</button>
+    {{end}}
+    {{if can .User "agent.create"}}
+    <a href="/agents/new" class="btn btn-primary">New Agent</a>
+    {{end}}
+  </div>
+</div>
+
+<div class="stat-grid">
+  <div class="stat-card">
+    <div class="stat-label">Total Agents</div>
+    <div class="stat-value">{{.TotalAgents}}</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">Running</div>
+    <div class="stat-value">{{.RunningCount}}</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">Stopped</div>
+    <div class="stat-value">{{.StoppedCount}}</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">Errors</div>
+    <div class="stat-value">{{.ErrorCount}}</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">Quarantined</div>
+    <div class="stat-value">{{.QuarantinedCount}}</div>
+  </div>
+  {{if gt .KilledCount 0}}
+  <div class="stat-card">
+    <div class="stat-label">Killed</div>
+    <div class="stat-value">{{.KilledCount}}</div>
+  </div>
+  {{end}}
+  {{if .SlackPrimary}}
+  <div class="stat-card">
+    <div class="stat-label">Slack Apps</div>
+    <div class="stat-value">1+{{.SlackDedicated}}</div>
+  </div>
+  {{end}}
+</div>
+
+<div id="agent-cards">
+  {{template "agent-cards" .}}
+</div>
+
+<dialog id="vacation-dialog" class="vacation-dialog">
+  <form method="dialog">
+    <h3>Activate Vacation Mode</h3>
+    <p>All running agents will be gracefully stopped. Queued messages will be preserved and processed when vacation mode is deactivated.</p>
+    <div style="margin: 12px 0;">
+      <label for="vacation-message" style="display: block; margin-bottom: 4px; font-size: 14px;">Message (optional)</label>
+      <textarea id="vacation-message" name="message" rows="2" style="width: 100%; padding: 8px; border-radius: 6px; border: 1px solid var(--border-color); background: var(--content-bg); color: var(--text-primary); resize: vertical;" placeholder="e.g. On vacation until Monday"></textarea>
+    </div>
+    <div style="display: flex; gap: 8px; justify-content: flex-end;">
+      <button type="button" class="btn btn-sm" onclick="this.closest('dialog').close()">Cancel</button>
+      <button type="button" class="btn btn-sm btn-warning"
+              hx-post="/vacation/activate"
+              hx-include="#vacation-message"
+              hx-target="body">Activate Vacation Mode</button>
+    </div>
+  </form>
+</dialog>
+{{end}}
+
+{{define "agent-cards"}}
+{{if .Agents}}
+<div class="card-grid">
+  {{range .Agents}}
+  <div class="card" id="agent-{{.ID}}">
+    <a href="/agents/{{.ID}}" class="card-link">
+      <div class="card-header">
+        <h3>{{.Name}}</h3>
+        <span hx-get="/agents/{{.ID}}/status" hx-trigger="every 5s" hx-swap="outerHTML" class="badge badge-{{.Status}}">{{.Status}}</span>
+      </div>
+      <div class="card-body">
+        {{if .Description}}<p>{{.Description}}</p>{{end}}
+        <div class="card-meta">
+          <span>{{.ModelConfig.Provider}}/{{.ModelConfig.Model}}</span>
+          {{if .Template}}<span class="badge badge-{{.Template}}">{{.Template}}</span>{{end}}
+          {{if eq .SlackMode "dedicated"}}<span class="badge badge-info">Dedicated Slack</span>{{end}}
+          {{if eq .SlackMode "primary"}}<span class="badge badge-default">Shared Slack</span>{{end}}
+        </div>
+      </div>
+    </a>
+    <div class="card-actions">
+      {{if and (can $.User "agent.start") (eq .Status "quarantined")}}
+        <button class="btn btn-success btn-sm" hx-post="/agents/{{.ID}}/start" hx-target="#agent-{{.ID}}" hx-swap="outerHTML">Un-quarantine</button>
+      {{else if and (can $.User "agent.start") (eq .Status "stopped")}}
+        <button class="btn btn-success btn-sm" hx-post="/agents/{{.ID}}/start" hx-target="#agent-{{.ID}}" hx-swap="outerHTML">Start</button>
+      {{else if and (can $.User "agent.start") (eq .Status "killed")}}
+        <button class="btn btn-success btn-sm" hx-post="/agents/{{.ID}}/start" hx-target="#agent-{{.ID}}" hx-swap="outerHTML">Start</button>
+      {{else if and (can $.User "agent.chat") (eq .Status "running")}}
+        <a href="/agents/{{.ID}}/chat" class="btn btn-primary btn-sm">Chat</a>
+      {{else if and (can $.User "agent.start") (eq .Status "error")}}
+        <button class="btn btn-success btn-sm" hx-post="/agents/{{.ID}}/start" hx-target="#agent-{{.ID}}" hx-swap="outerHTML">Restart</button>
+      {{end}}
+      <div class="action-dropdown-wrap">
+        <button class="action-kebab" onclick="this.nextElementSibling.classList.toggle('open')" aria-label="More actions">&middot;&middot;&middot;</button>
+        <div class="action-dropdown">
+          {{if and (can $.User "agent.stop") (eq .Status "running")}}
+            <button class="btn-dropdown" hx-post="/agents/{{.ID}}/stop" hx-target="#agent-{{.ID}}" hx-swap="outerHTML">Stop</button>
+          {{end}}
+          {{if and (can $.User "agent.kill") (eq .Status "running")}}
+            <button class="btn-dropdown danger" hx-post="/agents/{{.ID}}/kill" hx-confirm="Kill agent '{{.Name}}'? This will immediately terminate all operations." hx-target="#agent-{{.ID}}" hx-swap="outerHTML">Kill</button>
+          {{end}}
+          {{if and (can $.User "agent.quarantine") (or (eq .Status "running") (eq .Status "stopped") (eq .Status "error"))}}
+            <button class="btn-dropdown" hx-post="/agents/{{.ID}}/quarantine" hx-target="#agent-{{.ID}}" hx-swap="outerHTML">Quarantine</button>
+          {{end}}
+          {{if can $.User "agent.edit"}}<a href="/agents/{{.ID}}" class="btn-dropdown">Edit</a>{{end}}
+          {{if can $.User "agent.delete"}}<button class="btn-dropdown danger" hx-post="/agents/{{.ID}}/delete" hx-confirm="Delete agent '{{.Name}}'? This cannot be undone." hx-target="body">Delete</button>{{end}}
+        </div>
+      </div>
+      {{if and (eq .Status "error") .LastError}}<span class="text-mono" style="font-size: 12px; color: var(--danger);">{{.LastError}}</span>{{end}}
+    </div>
+  </div>
+  {{end}}
+</div>
+{{else}}
+<div class="empty-state">
+  <h3>No agents yet</h3>
+  <p>Create your first agent to get started.</p>
+  <a href="/agents/new" class="btn btn-primary">New Agent</a>
+</div>
+{{end}}
+{{end}}

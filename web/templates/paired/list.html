@@ -1,0 +1,53 @@
+{{define "paired-list"}}
+<div class="page-header">
+  <div>
+    <h2>Paired Conversations</h2>
+    <p>Launch and monitor turn-based agent-to-agent conversations.</p>
+  </div>
+  <a href="/paired/new" class="btn btn-primary">New Conversation</a>
+</div>
+
+{{if .Conversations}}
+<div class="card" style="padding: 0;">
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Agent A</th>
+          <th>Agent B</th>
+          <th>Topic</th>
+          <th>Status</th>
+          <th>Turns</th>
+          <th>Tokens</th>
+          <th>Cost</th>
+          <th>Started</th>
+        </tr>
+      </thead>
+      <tbody>
+        {{range .Conversations}}
+        <tr onclick="window.location='/paired/{{.Conv.ID}}'" style="cursor: pointer;">
+          <td>{{.AgentAName}}</td>
+          <td>{{.AgentBName}}</td>
+          <td title="{{.Conv.Topic}}">{{.TopicShort}}</td>
+          <td>
+            {{if .IsActive}}<span style="display:inline-block;width:8px;height:8px;border-radius:999px;background:var(--success);margin-right:6px;animation:pulse-dot 1.2s infinite;"></span>{{end}}
+            <span class="badge {{if eq .Conv.Status "active"}}badge-running{{else if eq .Conv.Status "paused"}}badge-warning{{else if eq .Conv.Status "completed"}}badge-info{{else}}badge-stopped{{end}}">{{.Conv.Status}}</span>
+          </td>
+          <td>{{.Conv.CurrentTurn}} / {{.Conv.MaxTurns}} per-agent</td>
+          <td>{{.Conv.TotalTokens}}</td>
+          <td>${{printf "%.4f" .Conv.EstimatedCost}}</td>
+          <td>{{localTime .Conv.CreatedAt "2006-01-02 15:04:05"}}</td>
+        </tr>
+        {{end}}
+      </tbody>
+    </table>
+  </div>
+</div>
+{{else}}
+<div class="empty-state">
+  <h3>No paired conversations yet</h3>
+  <p>Start a conversation between two running agents to watch collaborative reasoning live.</p>
+  <a href="/paired/new" class="btn btn-primary">New Conversation</a>
+</div>
+{{end}}
+{{end}}

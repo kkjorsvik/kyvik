@@ -1,0 +1,228 @@
+{{define "outbound-webhooks-list"}}
+<div class="page-header">
+  <div>
+    <h2>Outbound Webhooks</h2>
+    <p>HTTP POST notifications fired when system events occur</p>
+  </div>
+  <button class="btn btn-primary" onclick="openAddWebhookDialog()">Add Webhook</button>
+</div>
+
+<!-- Scope Tabs -->
+<div class="card" style="padding: 0;">
+  <div class="scope-tabs" style="display: flex; gap: 0; border-bottom: 1px solid var(--border-color); overflow-x: auto;">
+    <button class="scope-tab {{if eq .AgentID ""}}active{{end}}"
+            hx-get="/outbound-webhooks/table?agent_id="
+            hx-target="#wh-table-container"
+            hx-swap="innerHTML"
+            onclick="setActiveWhTab(this)">Global</button>
+    {{range .Agents}}
+    <button class="scope-tab {{if eq $.AgentID .ID}}active{{end}}"
+            hx-get="/outbound-webhooks/table?agent_id={{.ID}}"
+            hx-target="#wh-table-container"
+            hx-swap="innerHTML"
+            onclick="setActiveWhTab(this)">{{.Name}}</button>
+    {{end}}
+  </div>
+
+  <div id="wh-table-container">
+    {{template "outbound-webhooks-table" .}}
+  </div>
+</div>
+
+<!-- Add Webhook Dialog -->
+<dialog id="wh-dialog" style="border: 1px solid var(--border-color); border-radius: var(--card-radius); padding: 24px; max-width: 560px; width: 90%; background: var(--card-bg); color: var(--text-primary);">
+  <h3 style="margin-bottom: 16px;">Add Webhook</h3>
+  <form id="wh-form"
+        hx-post="/outbound-webhooks"
+        hx-target="#wh-table-container"
+        hx-swap="innerHTML">
+    <input type="hidden" name="agent_id" id="wh-agent-id" value="">
+    <div style="display: flex; flex-direction: column; gap: 12px;">
+      <div>
+        <label style="display: block; margin-bottom: 4px; font-size: 13px; color: var(--text-secondary);">Name</label>
+        <input type="text" name="name" class="form-input" placeholder="Slack alerts" required>
+      </div>
+      <div>
+        <label style="display: block; margin-bottom: 4px; font-size: 13px; color: var(--text-secondary);">URL</label>
+        <input type="url" name="url" class="form-input" placeholder="https://hooks.example.com/..." required>
+      </div>
+      <div>
+        <label style="display: block; margin-bottom: 4px; font-size: 13px; color: var(--text-secondary);">Events (comma-separated or * for all)</label>
+        <input type="text" name="events" class="form-input" placeholder="*" value="*">
+      </div>
+      <div>
+        <label style="display: block; margin-bottom: 4px; font-size: 13px; color: var(--text-secondary);">Secret Ref (vault key for auth header)</label>
+        <input type="text" name="secret_ref" class="form-input" placeholder="Optional">
+      </div>
+      <div>
+        <label style="display: block; margin-bottom: 4px; font-size: 13px; color: var(--text-secondary);">Payload Template (Go template, optional)</label>
+        <textarea name="payload_template" class="form-input" rows="3" placeholder="Leave blank for default JSON" style="font-family: var(--font-mono); font-size: 12px;"></textarea>
+      </div>
+      <div style="display: flex; gap: 12px;">
+        <div style="flex: 1;">
+          <label style="display: block; margin-bottom: 4px; font-size: 13px; color: var(--text-secondary);">Max Retries</label>
+          <input type="number" name="max_retries" class="form-input" value="3" min="0" max="10">
+        </div>
+        <div style="flex: 1;">
+          <label style="display: block; margin-bottom: 4px; font-size: 13px; color: var(--text-secondary);">CB Threshold</label>
+          <input type="number" name="cb_threshold" class="form-input" value="10" min="1">
+        </div>
+        <div style="flex: 1;">
+          <label style="display: block; margin-bottom: 4px; font-size: 13px; color: var(--text-secondary);">CB Cooldown (s)</label>
+          <input type="number" name="cb_cooldown_secs" class="form-input" value="3600" min="60">
+        </div>
+      </div>
+      <div style="display: flex; gap: 8px; justify-content: flex-end; margin-top: 8px;">
+        <button type="button" class="btn btn-secondary" onclick="document.getElementById('wh-dialog').close()">Cancel</button>
+        <button type="submit" class="btn btn-primary">Save</button>
+      </div>
+    </div>
+  </form>
+</dialog>
+
+<script>
+function setActiveWhTab(el) {
+  el.closest('.scope-tabs').querySelectorAll('.scope-tab').forEach(function(tab) {
+    tab.classList.remove('active');
+  });
+  el.classList.add('active');
+  var hxGet = el.getAttribute('hx-get') || '';
+  var match = hxGet.match(/agent_id=([^&]*)/);
+  document.getElementById('wh-agent-id').value = match ? match[1] : '';
+}
+function openAddWebhookDialog() {
+  var dialog = document.getElementById('wh-dialog');
+  dialog.querySelector('h3').textContent = 'Add Webhook';
+  dialog.querySelector('form').reset();
+  var active = document.querySelector('.scope-tabs .scope-tab.active');
+  if (active) {
+    var hxGet = active.getAttribute('hx-get') || '';
+    var match = hxGet.match(/agent_id=([^&]*)/);
+    document.getElementById('wh-agent-id').value = match ? match[1] : '';
+  }
+  dialog.showModal();
+}
+document.getElementById('wh-form').addEventListener('htmx:afterRequest', function(evt) {
+  if (evt.detail && evt.detail.successful) {
+    document.getElementById('wh-dialog').close();
+  }
+});
+</script>
+{{end}}
+
+{{define "outbound-webhooks-table"}}
+{{if .Webhooks}}
+<div class="table-wrap">
+  <table>
+    <thead>
+      <tr>
+        <th>Name</th>
+        <th>URL</th>
+        <th>Events</th>
+        <th>Status</th>
+        <th>Actions</th>
+      </tr>
+    </thead>
+    <tbody>
+      {{range .Webhooks}}
+      <tr>
+        <td style="font-weight: 500;">{{.Name}}</td>
+        <td><code style="font-family: var(--font-mono); font-size: 12px; word-break: break-all;">{{.URL}}</code></td>
+        <td>
+          {{range .Events}}
+          <span class="badge badge-reader" style="margin-right: 2px;">{{.}}</span>
+          {{end}}
+        </td>
+        <td>
+          {{if .Enabled}}
+          <span class="badge badge-running">Enabled</span>
+          {{else}}
+          <span class="badge badge-stopped">Disabled</span>
+          {{end}}
+        </td>
+        <td>
+          <div class="action-dropdown-wrap">
+            <button class="action-kebab" onclick="this.nextElementSibling.classList.toggle('open')" aria-label="More actions">&middot;&middot;&middot;</button>
+            <div class="action-dropdown">
+              <button class="btn-dropdown"
+                      hx-post="/outbound-webhooks/{{.ID}}/test"
+                      hx-swap="none">Test</button>
+              <button class="btn-dropdown"
+                      hx-get="/outbound-webhooks/{{.ID}}/deliveries"
+                      hx-target="#delivery-log"
+                      hx-swap="innerHTML">Deliveries</button>
+              <button class="btn-dropdown"
+                      hx-post="/outbound-webhooks/{{.ID}}/toggle"
+                      hx-target="#wh-table-container"
+                      hx-swap="innerHTML">{{if .Enabled}}Disable{{else}}Enable{{end}}</button>
+              <button class="btn-dropdown danger"
+                      hx-post="/outbound-webhooks/delete"
+                      hx-vals='{"webhook_id": "{{.ID}}", "agent_id": "{{$.AgentID}}"}'
+                      hx-target="#wh-table-container"
+                      hx-swap="innerHTML"
+                      hx-confirm="Delete webhook '{{.Name}}'? This cannot be undone.">Delete</button>
+            </div>
+          </div>
+        </td>
+      </tr>
+      {{end}}
+    </tbody>
+  </table>
+</div>
+<div id="delivery-log" style="margin-top: 16px;"></div>
+{{else}}
+<div style="padding: 40px; text-align: center; color: var(--text-muted);">
+  <p>No outbound webhooks configured.</p>
+  <p style="font-size: 13px; margin-top: 8px;">Click "Add Webhook" to create one.</p>
+</div>
+<div id="delivery-log"></div>
+{{end}}
+{{end}}
+
+{{define "outbound-webhook-deliveries"}}
+{{if .Deliveries}}
+<div class="card" style="margin-top: 8px;">
+  <h4 style="margin-bottom: 12px;">Delivery Log</h4>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Event</th>
+          <th>Status</th>
+          <th>HTTP</th>
+          <th>Duration</th>
+          <th>Retries</th>
+          <th>Time</th>
+          <th>Error</th>
+        </tr>
+      </thead>
+      <tbody>
+        {{range .Deliveries}}
+        <tr>
+          <td><code style="font-size: 12px;">{{.EventType}}</code></td>
+          <td>
+            {{if eq (printf "%s" .Status) "success"}}
+            <span class="badge badge-running">OK</span>
+            {{else if eq (printf "%s" .Status) "pending_retry"}}
+            <span class="badge badge-starting">Retry</span>
+            {{else}}
+            <span class="badge badge-error">Failed</span>
+            {{end}}
+          </td>
+          <td>{{if .HTTPCode}}{{.HTTPCode}}{{else}}-{{end}}</td>
+          <td>{{.DurationMs}}ms</td>
+          <td>{{.RetryCount}}</td>
+          <td style="font-size: 12px; color: var(--text-muted);">{{localTime .CreatedAt "15:04:05"}}</td>
+          <td style="font-size: 12px; color: var(--text-secondary); max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{{.ErrorMessage}}</td>
+        </tr>
+        {{end}}
+      </tbody>
+    </table>
+  </div>
+</div>
+{{else}}
+<div class="card" style="margin-top: 8px; padding: 20px; text-align: center; color: var(--text-muted);">
+  No deliveries recorded yet.
+</div>
+{{end}}
+{{end}}

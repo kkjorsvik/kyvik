@@ -1,0 +1,143 @@
+{{define "card-webhooks"}}
+<div id="card-webhooks">
+<div class="card mt-2">
+  <div class="card-header">
+    <h3>Inbound Webhooks</h3>
+    {{if and .Agent.WebhookInbound .Agent.WebhookInbound.Enabled}}
+      <span class="badge badge-running">enabled</span>
+    {{else}}
+      <span class="badge badge-stopped">disabled</span>
+    {{end}}
+    {{if can .User "agent.edit"}}
+    <button class="btn-edit-section"
+            hx-get="/agents/{{.Agent.ID}}/edit/webhooks"
+            hx-target="body" hx-swap="beforeend"
+            title="Edit Inbound Webhooks">&#9998;</button>
+    {{end}}
+  </div>
+  <div id="webhook-section">
+    <div class="card-body">
+      {{if and .Agent.WebhookInbound .Agent.WebhookInbound.Enabled}}
+        <div class="form-group" style="margin-bottom: 0.75rem;">
+          <label>Webhook URL</label>
+          <div style="display: flex; gap: 0.5rem; align-items: center;">
+            <code style="flex: 1; padding: 0.25rem 0.5rem; background: var(--border-color); border-radius: 4px; font-size: 0.85em; word-break: break-all;">
+              POST /webhooks/{{.Agent.ID}}/&lt;click Reveal&gt;
+            </code>
+            <button class="btn btn-sm btn-secondary"
+              hx-get="/agents/{{.Agent.ID}}/webhook/secret"
+              hx-swap="none"
+              onclick="(async()=>{const r=await fetch('/agents/{{.Agent.ID}}/webhook/secret');if(r.ok){const s=await r.text();prompt('Webhook URL (copy this):',location.origin+'/webhooks/{{.Agent.ID}}/'+s);}})()">
+              Reveal &amp; Copy
+            </button>
+          </div>
+        </div>
+
+        {{if .Agent.WebhookInbound.TransformTemplate}}
+        <div class="form-group" style="margin-bottom: 0.75rem;">
+          <label>Transform Template</label>
+          <details>
+            <summary class="detail-summary">{{if gt (len .Agent.WebhookInbound.TransformTemplate) 80}}{{slice .Agent.WebhookInbound.TransformTemplate 0 80}}...{{else}}{{.Agent.WebhookInbound.TransformTemplate}}{{end}}</summary>
+            <pre style="white-space: pre-wrap; font-size: 13px; margin-top: 8px; color: var(--text-secondary); font-family: monospace;">{{.Agent.WebhookInbound.TransformTemplate}}</pre>
+          </details>
+        </div>
+        {{end}}
+
+        {{if .Agent.WebhookInbound.SignatureHeader}}
+        <div class="form-group" style="margin-bottom: 0.75rem;">
+          <label>Signature Header</label>
+          <span class="text-mono">{{.Agent.WebhookInbound.SignatureHeader}}</span>
+        </div>
+        {{end}}
+
+        {{if .Agent.WebhookInbound.AllowedSources}}
+        <div class="form-group" style="margin-bottom: 0.75rem;">
+          <label>Allowed Sources</label>
+          <span class="text-mono">{{len .Agent.WebhookInbound.AllowedSources}} IP(s)</span>
+        </div>
+        {{end}}
+
+        <div style="display: flex; gap: 0.5rem; flex-wrap: wrap; margin-top: 0.75rem;">
+          <button class="btn btn-sm btn-secondary"
+            hx-post="/agents/{{.Agent.ID}}/webhook/test"
+            hx-swap="none">
+            Send Test Payload
+          </button>
+          <button class="btn btn-sm btn-danger"
+            hx-post="/agents/{{.Agent.ID}}/webhook/disable"
+            hx-target="#card-webhooks"
+            hx-swap="outerHTML">
+            Disable
+          </button>
+        </div>
+
+        <div style="margin-top: 1rem;">
+          <h4 style="margin-bottom: 0.5rem; font-size: 0.9rem;">Recent Deliveries</h4>
+          <div hx-get="/agents/{{.Agent.ID}}/webhook/deliveries"
+               hx-trigger="load"
+               hx-swap="innerHTML">
+            <span style="color: var(--text-muted);">Loading...</span>
+          </div>
+        </div>
+      {{else}}
+        <p style="color: var(--text-muted); margin-bottom: 0.75rem;">
+          Inbound webhooks are disabled. Enable to receive HTTP POST events from external systems.
+        </p>
+        <button class="btn btn-sm btn-primary"
+          hx-post="/agents/{{.Agent.ID}}/webhook/enable"
+          hx-target="#card-webhooks"
+          hx-swap="outerHTML">
+          Enable Webhooks
+        </button>
+      {{end}}
+    </div>
+  </div>
+</div>
+</div>
+{{end}}
+
+{{define "modal-webhooks"}}
+<dialog class="edit-section-dialog">
+  <form hx-post="/agents/{{.Agent.ID}}/edit/webhooks"
+        hx-target="#card-webhooks" hx-swap="outerHTML">
+    <div class="dialog-header">
+      <h3>Edit Inbound Webhooks</h3>
+      <button type="button" class="btn-edit-section" onclick="this.closest('dialog').close()" title="Close">&times;</button>
+    </div>
+    <div class="dialog-body">
+      <div class="form-group">
+        <label style="display: flex; align-items: center; gap: 6px; cursor: pointer;">
+          <input type="checkbox" name="webhooks_enabled" value="true" {{if and .Agent.WebhookInbound .Agent.WebhookInbound.Enabled}}checked{{end}}>
+          Enabled
+        </label>
+      </div>
+      <div class="form-group">
+        <label for="edit-webhooks-transform">Transform Template <small style="color: var(--text-muted);">(Go template -- leave empty to pretty-print JSON)</small></label>
+        <textarea id="edit-webhooks-transform" name="transform_template" rows="4" class="form-textarea"
+          style="font-family: monospace;"
+          placeholder='Repository: {{"{{"}} .repository {{"}}"}}'>{{if .Agent.WebhookInbound}}{{.Agent.WebhookInbound.TransformTemplate}}{{end}}</textarea>
+      </div>
+      <div class="form-group">
+        <label for="edit-webhooks-allowed-sources">Allowed Sources <small style="color: var(--text-muted);">(IP allowlist, one per line; empty = allow all)</small></label>
+        <textarea id="edit-webhooks-allowed-sources" name="allowed_sources" rows="3" class="form-textarea" placeholder="One IP or CIDR per line">{{if .Agent.WebhookInbound}}{{range .Agent.WebhookInbound.AllowedSources}}{{.}}&#10;{{end}}{{end}}</textarea>
+      </div>
+      <div class="form-group">
+        <label for="edit-webhooks-rate-limit">Rate Limit <small style="color: var(--text-muted);">(requests per minute; 0 = default 60)</small></label>
+        <input type="number" id="edit-webhooks-rate-limit" name="rate_limit" class="form-input" value="{{if .Agent.WebhookInbound}}{{.Agent.WebhookInbound.RateLimit}}{{end}}" placeholder="60">
+      </div>
+      <div class="form-group">
+        <label for="edit-webhooks-signature-header">Signature Header <small style="color: var(--text-muted);">(empty = skip HMAC verification)</small></label>
+        <input type="text" id="edit-webhooks-signature-header" name="signature_header" class="form-input" value="{{if .Agent.WebhookInbound}}{{.Agent.WebhookInbound.SignatureHeader}}{{end}}" placeholder="X-Hub-Signature-256">
+      </div>
+      <div class="form-group">
+        <label for="edit-webhooks-max-payload">Max Payload Bytes <small style="color: var(--text-muted);">(0 = default 1 MiB)</small></label>
+        <input type="number" id="edit-webhooks-max-payload" name="max_payload_bytes" class="form-input" value="{{if .Agent.WebhookInbound}}{{.Agent.WebhookInbound.MaxPayloadBytes}}{{end}}" placeholder="1048576">
+      </div>
+    </div>
+    <div class="dialog-footer">
+      <button type="button" class="btn btn-secondary" onclick="this.closest('dialog').close()">Cancel</button>
+      <button type="submit" class="btn btn-primary">Save</button>
+    </div>
+  </form>
+</dialog>
+{{end}}

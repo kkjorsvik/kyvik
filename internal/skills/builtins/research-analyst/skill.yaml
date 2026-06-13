@@ -1,0 +1,14 @@
+name: research-analyst
+version: "1.0.0"
+description: Structured observation, pattern tracking, and source citation for systematic research
+author: kyvik
+license: Apache-2.0
+required_tools:
+  - memory
+required_capabilities:
+  - tool: memory
+    action: read
+    resource: "*"
+  - tool: memory
+    action: write
+    resource: "*"

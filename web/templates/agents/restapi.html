@@ -1,0 +1,150 @@
+{{define "restapi-endpoints"}}
+<div id="restapi-endpoints-container">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem;">
+        <h4 style="margin: 0;">Configured Endpoints</h4>
+        <button class="btn btn-sm btn-primary"
+                onclick="document.getElementById('restapi-add-form').style.display = document.getElementById('restapi-add-form').style.display === 'none' ? 'block' : 'none'">
+            + Add Endpoint
+        </button>
+    </div>
+
+    <!-- Add endpoint form (hidden by default) -->
+    <div id="restapi-add-form" style="display: none; margin-bottom: 1rem; padding: 1rem; border: 1px solid var(--border-color, #444); border-radius: 6px;">
+        <form hx-post="/agents/{{.Agent.ID}}/rest-api"
+              hx-target="#restapi-endpoints-container"
+              hx-swap="outerHTML">
+            <div style="display: flex; gap: 8px;">
+                <div class="form-group" style="flex: 1;">
+                    <label>Name</label>
+                    <input type="text" name="name" class="form-input" required placeholder="e.g. weather_api">
+                </div>
+                <div class="form-group" style="flex: 1;">
+                    <label>Method</label>
+                    <select name="method" class="form-input">
+                        <option value="GET">GET</option>
+                        <option value="POST">POST</option>
+                        <option value="PUT">PUT</option>
+                        <option value="PATCH">PATCH</option>
+                        <option value="DELETE">DELETE</option>
+                    </select>
+                </div>
+            </div>
+            <div class="form-group">
+                <label>URL (Go template)</label>
+                <input type="text" name="url" class="form-input" required
+                       placeholder="https://api.example.com/v1/&#123;&#123;.resource&#125;&#125;/&#123;&#123;.id&#125;&#125;">
+            </div>
+            <div class="form-group">
+                <label>Description</label>
+                <input type="text" name="description" class="form-input"
+                       placeholder="Brief description of what this endpoint does">
+            </div>
+            <div style="display: flex; gap: 8px;">
+                <div class="form-group" style="flex: 1;">
+                    <label>Auth Type</label>
+                    <select name="auth_type" class="form-input">
+                        <option value="none">None</option>
+                        <option value="bearer">Bearer Token</option>
+                        <option value="basic">Basic Auth</option>
+                        <option value="api_key">API Key</option>
+                        <option value="custom_header">Custom Header</option>
+                    </select>
+                </div>
+                <div class="form-group" style="flex: 1;">
+                    <label>Secret Ref (vault key)</label>
+                    <input type="text" name="auth_secret_ref" class="form-input"
+                           placeholder="e.g. weather:api_key">
+                </div>
+            </div>
+            <div style="display: flex; gap: 8px;">
+                <div class="form-group" style="flex: 1;">
+                    <label>Header Name (for api_key/custom)</label>
+                    <input type="text" name="auth_header_name" class="form-input"
+                           placeholder="e.g. X-API-Key">
+                </div>
+                <div class="form-group" style="flex: 1;">
+                    <label>Param Name (for api_key query)</label>
+                    <input type="text" name="auth_param_name" class="form-input"
+                           placeholder="e.g. api_key">
+                </div>
+            </div>
+            <div class="form-group">
+                <label>Body Template (Go template, for POST/PUT/PATCH)</label>
+                <textarea name="body_template" class="form-textarea" rows="2"
+                          placeholder='{"key": "&#123;&#123;.value&#125;&#125;"}'></textarea>
+            </div>
+            <div class="form-group">
+                <label>Response Template (Go template, optional)</label>
+                <textarea name="response_template" class="form-textarea" rows="2"
+                          placeholder="Temperature: &#123;&#123;.data.temp&#125;&#125;C in &#123;&#123;.data.city&#125;&#125;"></textarea>
+            </div>
+            <div style="display: flex; gap: 8px;">
+                <div class="form-group" style="flex: 1; margin-bottom: 0;">
+                    <label>Cache TTL (s)</label>
+                    <input type="number" name="cache_ttl_seconds" class="form-input" value="0" min="0">
+                </div>
+                <div class="form-group" style="flex: 1; margin-bottom: 0;">
+                    <label>Rate Limit (RPM)</label>
+                    <input type="number" name="rate_limit_rpm" class="form-input" value="0" min="0">
+                </div>
+                <div class="form-group" style="flex: 1; margin-bottom: 0;">
+                    <label>Timeout (s)</label>
+                    <input type="number" name="timeout_seconds" class="form-input" value="30" min="1" max="120">
+                </div>
+            </div>
+            <div style="margin-top: 20px;">
+                <button type="submit" class="btn btn-sm btn-primary">Save Endpoint</button>
+                <button type="button" class="btn btn-sm btn-secondary"
+                        onclick="document.getElementById('restapi-add-form').style.display='none'">Cancel</button>
+            </div>
+        </form>
+    </div>
+
+    {{if .Endpoints}}
+    <table class="table" style="font-size: 0.85rem;">
+        <thead>
+            <tr>
+                <th>Name</th>
+                <th>Method</th>
+                <th>URL</th>
+                <th>Auth</th>
+                <th>Cache</th>
+                <th>Rate</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+        {{range .Endpoints}}
+            <tr>
+                <td><strong>{{.Name}}</strong>{{if .Description}}<br><small style="color: var(--text-muted, #888);">{{.Description}}</small>{{end}}</td>
+                <td><span class="badge" style="font-size: 0.75rem;">{{.Method}}</span></td>
+                <td style="max-width: 300px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="{{.URL}}">{{.URL}}</td>
+                <td>{{.Auth.Type}}</td>
+                <td>{{if gt .CacheTTLSeconds 0}}{{.CacheTTLSeconds}}s{{else}}-{{end}}</td>
+                <td>{{if gt .RateLimitRPM 0}}{{.RateLimitRPM}}/m{{else}}-{{end}}</td>
+                <td>
+                    <form style="display: inline;"
+                          hx-post="/agents/{{$.Agent.ID}}/rest-api/{{.Name}}/test"
+                          hx-target="#restapi-test-result"
+                          hx-swap="innerHTML">
+                        <button type="submit" class="btn btn-xs btn-secondary" title="Test">Test</button>
+                    </form>
+                    <form style="display: inline;"
+                          hx-post="/agents/{{$.Agent.ID}}/rest-api/{{.Name}}/delete"
+                          hx-target="#restapi-endpoints-container"
+                          hx-swap="outerHTML"
+                          hx-confirm="Delete endpoint '{{.Name}}'?">
+                        <button type="submit" class="btn btn-xs btn-danger" title="Delete">Del</button>
+                    </form>
+                </td>
+            </tr>
+        {{end}}
+        </tbody>
+    </table>
+    {{else}}
+    <p style="color: var(--text-muted, #888); font-style: italic;">No REST API endpoints configured. Click "Add Endpoint" to create one.</p>
+    {{end}}
+
+    <div id="restapi-test-result" style="margin-top: 0.5rem;"></div>
+</div>
+{{end}}

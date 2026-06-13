@@ -1,0 +1,22 @@
+name: code-reviewer
+version: "1.0.0"
+description: Systematic code review methodology with structured feedback and security checks
+author: kyvik
+license: Apache-2.0
+required_tools:
+  - file
+  - shell
+  - memory
+required_capabilities:
+  - tool: filesystem
+    action: read
+    resource: "*"
+  - tool: shell
+    action: execute
+    resource: "*"
+  - tool: memory
+    action: read
+    resource: "*"
+  - tool: memory
+    action: write
+    resource: "*"

@@ -1,0 +1,137 @@
+name: linear
+display_name: Linear
+description: Project management with Linear — create, update, and track issues, manage projects, and assign work.
+version: 1.0.0
+category: project-management
+icon: linear
+auth:
+  type: bearer
+  secret_ref: linear_api_key
+  setup_url: https://linear.app/settings/api
+  instructions: |
+    1. Go to https://linear.app/settings/api
+    2. Click "Create key" under Personal API keys
+    3. Give it a label and copy the generated key
+
+variables:
+  - name: team_id
+    description: Default Linear team ID (found in team settings URL)
+    required: false
+    example: "abc123def"
+
+endpoints:
+  - name: linear_list_issues
+    description: List issues with optional filter
+    method: POST
+    url: https://api.linear.app/graphql
+    headers:
+      Content-Type: application/json
+    body_template: |
+      {"query":"query { issues(first: {{or .limit 25}}, filter: { {{if .state}}state: {name: {eq: \"{{.state}}\"}}{{end}} {{if .assignee}}, assignee: {name: {eq: \"{{.assignee}}\"}}{{end}} }) { nodes { id identifier title state { name } assignee { name } priority createdAt } } }"}
+    parameters:
+      - name: limit
+        description: Max issues to return
+        required: false
+        type: int
+        default: "25"
+      - name: state
+        description: Filter by state name
+        required: false
+      - name: assignee
+        description: Filter by assignee name
+        required: false
+    response_template: |
+      {{if .data.data.issues}}Issues:
+      {{range .data.data.issues.nodes}}- {{.identifier}}: {{.title}} [{{.state.name}}]{{if .assignee}} → {{.assignee.name}}{{end}}
+      {{end}}{{end}}
+    rate_limit_rpm: 30
+    timeout_seconds: 15
+
+  - name: linear_create_issue
+    description: Create a new issue
+    method: POST
+    url: https://api.linear.app/graphql
+    headers:
+      Content-Type: application/json
+    body_template: |
+      {"query":"mutation { issueCreate(input: { title: \"{{.title}}\", description: \"{{.description}}\" {{if .team_id}}, teamId: \"{{.team_id}}\"{{end}} {{if .priority}}, priority: {{.priority}}{{end}} {{if .assignee_id}}, assigneeId: \"{{.assignee_id}}\"{{end}} }) { success issue { id identifier title url } } }"}
+    parameters:
+      - name: title
+        description: Issue title
+        required: true
+      - name: description
+        description: Issue description
+        required: true
+      - name: team_id
+        description: Team ID (uses default if not specified)
+        required: false
+      - name: priority
+        description: Priority level (0=none, 1=urgent, 2=high, 3=medium, 4=low)
+        required: false
+        type: int
+      - name: assignee_id
+        description: User ID to assign the issue to
+        required: false
+    rate_limit_rpm: 20
+    timeout_seconds: 15
+
+  - name: linear_update_issue
+    description: Update an existing issue
+    method: POST
+    url: https://api.linear.app/graphql
+    headers:
+      Content-Type: application/json
+    body_template: |
+      {"query":"mutation { issueUpdate(id: \"{{.issue_id}}\", input: { {{if .title}}title: \"{{.title}}\"{{end}} {{if .state_id}}, stateId: \"{{.state_id}}\"{{end}} {{if .assignee_id}}, assigneeId: \"{{.assignee_id}}\"{{end}} {{if .priority}}, priority: {{.priority}}{{end}} }) { success issue { id identifier title state { name } } } }"}
+    parameters:
+      - name: issue_id
+        description: Issue ID to update
+        required: true
+      - name: title
+        description: New title
+        required: false
+      - name: state_id
+        description: New state ID
+        required: false
+      - name: assignee_id
+        description: New assignee user ID
+        required: false
+      - name: priority
+        description: New priority level (0=none, 1=urgent, 2=high, 3=medium, 4=low)
+        required: false
+        type: int
+    rate_limit_rpm: 20
+    timeout_seconds: 15
+
+  - name: linear_list_projects
+    description: List all projects
+    method: POST
+    url: https://api.linear.app/graphql
+    headers:
+      Content-Type: application/json
+    body_template: |
+      {"query":"query { projects(first: 50) { nodes { id name state progress { scope completed } lead { name } } } }"}
+    response_template: |
+      {{if .data.data.projects}}Projects:
+      {{range .data.data.projects.nodes}}- {{.name}} [{{.state}}] {{if .lead}}(lead: {{.lead.name}}){{end}}
+      {{end}}{{end}}
+    cache_ttl_seconds: 120
+    rate_limit_rpm: 20
+
+  - name: linear_assign_issue
+    description: Assign an issue to a team member
+    method: POST
+    url: https://api.linear.app/graphql
+    headers:
+      Content-Type: application/json
+    body_template: |
+      {"query":"mutation { issueUpdate(id: \"{{.issue_id}}\", input: { assigneeId: \"{{.assignee_id}}\" }) { success issue { id identifier assignee { name } } } }"}
+    parameters:
+      - name: issue_id
+        description: Issue ID to assign
+        required: true
+      - name: assignee_id
+        description: User ID to assign to
+        required: true
+    rate_limit_rpm: 20
+    timeout_seconds: 10

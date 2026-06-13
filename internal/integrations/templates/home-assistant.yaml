@@ -1,0 +1,101 @@
+name: home-assistant
+display_name: Home Assistant
+description: Smart home control with Home Assistant — manage entities, toggle devices, check states, and run automations.
+version: 1.0.0
+category: personal
+icon: home-assistant
+auth:
+  type: bearer
+  secret_ref: ha_token
+  setup_url: https://www.home-assistant.io/docs/authentication/
+  instructions: |
+    1. In Home Assistant, go to Profile → Long-Lived Access Tokens
+    2. Create a new token and copy it
+    3. Note your Home Assistant URL (e.g., https://homeassistant.local:8123)
+
+variables:
+  - name: ha_url
+    description: Home Assistant base URL (with https://)
+    required: true
+    example: "https://homeassistant.local:8123"
+
+endpoints:
+  - name: ha_entities
+    description: List all entities and their current states
+    method: GET
+    url: "{{.ha_url}}/api/states"
+    response_template: |
+      {{if .data}}Entities ({{len .data}}):
+      {{range .data}}- {{.entity_id}}: {{.state}}{{if .attributes.friendly_name}} ({{.attributes.friendly_name}}){{end}}
+      {{end}}{{end}}
+    cache_ttl_seconds: 30
+    rate_limit_rpm: 10
+    timeout_seconds: 15
+
+  - name: ha_entity_state
+    description: Get the state of a specific entity
+    method: GET
+    url: "{{.ha_url}}/api/states/{{.entity_id}}"
+    parameters:
+      - name: entity_id
+        description: "Entity ID (e.g. light.living_room)"
+        required: true
+    rate_limit_rpm: 30
+    timeout_seconds: 10
+
+  - name: ha_call_service
+    description: Call a Home Assistant service (e.g., turn on/off a device)
+    method: POST
+    url: "{{.ha_url}}/api/services/{{.domain}}/{{.service}}"
+    headers:
+      Content-Type: application/json
+    body_template: |
+      {"entity_id":"{{.entity_id}}"}
+    parameters:
+      - name: domain
+        description: "Service domain (e.g. light, switch, climate)"
+        required: true
+      - name: service
+        description: "Service name (e.g. turn_on, turn_off)"
+        required: true
+      - name: entity_id
+        description: "Entity ID to act on (e.g. light.kitchen)"
+        required: true
+    rate_limit_rpm: 30
+    timeout_seconds: 15
+
+  - name: ha_toggle
+    description: Toggle a device (switch, light, etc.)
+    method: POST
+    url: "{{.ha_url}}/api/services/homeassistant/toggle"
+    headers:
+      Content-Type: application/json
+    body_template: |
+      {"entity_id":"{{.entity_id}}"}
+    parameters:
+      - name: entity_id
+        description: "Entity ID to toggle (e.g. switch.fan)"
+        required: true
+    rate_limit_rpm: 30
+    timeout_seconds: 10
+
+  - name: ha_automations
+    description: List all automations
+    method: GET
+    url: "{{.ha_url}}/api/states"
+    response_template: |
+      {{if .data}}Automations:
+      {{range .data}}{{if hasPrefix .entity_id "automation."}}- {{.entity_id}}: {{.state}}{{if .attributes.friendly_name}} ({{.attributes.friendly_name}}){{end}}
+      {{end}}{{end}}{{end}}
+    cache_ttl_seconds: 60
+    rate_limit_rpm: 10
+
+prompts:
+  system: |
+    You have Home Assistant integration available for smart home control. When using it:
+    - Use ha_entities first to discover available devices and their entity_ids
+    - Entity IDs follow the pattern domain.name (e.g., light.living_room, switch.fan)
+    - Use ha_call_service for specific actions: domain=light, service=turn_on, entity_id=light.kitchen
+    - Use ha_toggle for simple on/off toggling
+    - Always confirm before performing actions that affect the physical environment
+    - Common domains: light, switch, cover, climate, media_player, automation

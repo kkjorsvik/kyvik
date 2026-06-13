@@ -1,0 +1,44 @@
+{{define "teams-list"}}
+<div class="page-header">
+  <div>
+    <h2>Teams</h2>
+    <p>Coordinate groups of agents with shared context and communication rules.</p>
+  </div>
+  <a href="/teams/new" class="btn btn-primary">Create Team</a>
+</div>
+
+{{if .Teams}}
+<div class="card-grid">
+  {{range .Teams}}
+  <div class="card">
+    <a href="/teams/{{.Team.ID}}" class="card-link">
+      <div class="card-header">
+        <h3>{{.Team.Name}}</h3>
+        <span class="badge {{if eq .Team.Communication "open"}}badge-info{{else}}badge-default{{end}}">{{.Team.Communication}}</span>
+        {{if not .Team.Active}}
+        <span class="badge badge-warning" style="margin-left: 6px;">paused</span>
+        {{end}}
+      </div>
+      <div class="card-body">
+        {{if .Team.Description}}<p>{{.Team.Description}}</p>{{end}}
+        <div class="card-meta" style="display: flex; flex-wrap: wrap; gap: 12px; margin-top: 8px;">
+          <span><strong>Leader:</strong> {{.LeaderName}}</span>
+          <span><strong>Members:</strong> {{.MemberCount}}</span>
+          <span>
+            <strong>Status:</strong>
+            <span class="badge {{if eq .AggregateStatus "all running"}}badge-running{{else if eq .AggregateStatus "all stopped"}}badge-stopped{{else}}badge-warning{{end}}">{{.AggregateStatus}}</span>
+          </span>
+        </div>
+      </div>
+    </a>
+  </div>
+  {{end}}
+</div>
+{{else}}
+<div class="empty-state">
+  <h3>No teams configured</h3>
+  <p>Create a team to enable agent coordination.</p>
+  <a href="/teams/new" class="btn btn-primary">Create Team</a>
+</div>
+{{end}}
+{{end}}

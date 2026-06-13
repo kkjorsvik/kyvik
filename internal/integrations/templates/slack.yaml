@@ -1,0 +1,127 @@
+name: slack-rich
+display_name: Slack (Rich)
+description: Full Slack workspace integration — search messages, post to channels, manage threads, and react to messages.
+version: 1.0.0
+category: communication
+icon: slack
+auth:
+  type: bearer
+  secret_ref: slack_bot_token
+  setup_url: https://api.slack.com/apps
+  instructions: |
+    1. Go to https://api.slack.com/apps and create a new app (or use existing)
+    2. Under OAuth & Permissions, add scopes: channels:read, chat:write, reactions:write, search:read, users:read
+    3. Install the app to your workspace
+    4. Copy the Bot User OAuth Token (starts with xoxb-)
+
+endpoints:
+  - name: slack_search
+    description: Search messages across the workspace
+    method: POST
+    url: https://slack.com/api/search.messages
+    headers:
+      Content-Type: application/x-www-form-urlencoded
+    body_template: "query={{.query}}&count={{or .count 10}}"
+    parameters:
+      - name: query
+        description: Search query
+        required: true
+      - name: count
+        description: Max results to return
+        required: false
+        type: int
+        default: "10"
+    response_template: |
+      {{if .data.ok}}Found {{len .data.messages.matches}} messages:
+      {{range .data.messages.matches}}- [{{.username}}] {{.text}}
+      {{end}}{{else}}Error: {{.data.error}}{{end}}
+    rate_limit_rpm: 20
+    timeout_seconds: 15
+
+  - name: slack_post
+    description: Post a message to a Slack channel
+    method: POST
+    url: https://slack.com/api/chat.postMessage
+    headers:
+      Content-Type: application/json
+    body_template: |
+      {"channel":"{{.channel}}","text":"{{.text}}"}
+    parameters:
+      - name: channel
+        description: Channel ID to post to
+        required: true
+      - name: text
+        description: Message text
+        required: true
+    rate_limit_rpm: 30
+    timeout_seconds: 10
+
+  - name: slack_thread_reply
+    description: Reply in a thread
+    method: POST
+    url: https://slack.com/api/chat.postMessage
+    headers:
+      Content-Type: application/json
+    body_template: |
+      {"channel":"{{.channel}}","text":"{{.text}}","thread_ts":"{{.thread_ts}}"}
+    parameters:
+      - name: channel
+        description: Channel ID
+        required: true
+      - name: text
+        description: Reply text
+        required: true
+      - name: thread_ts
+        description: Thread timestamp to reply to
+        required: true
+    rate_limit_rpm: 30
+    timeout_seconds: 10
+
+  - name: slack_channels
+    description: List public channels in the workspace
+    method: GET
+    url: https://slack.com/api/conversations.list
+    query_params:
+      types: public_channel
+      limit: "{{or .limit 100}}"
+    parameters:
+      - name: limit
+        description: Max channels to return
+        required: false
+        type: int
+        default: "100"
+    response_template: |
+      {{if .data.ok}}Channels:
+      {{range .data.channels}}- #{{.name}} ({{.num_members}} members){{if .purpose.value}} — {{.purpose.value}}{{end}}
+      {{end}}{{else}}Error: {{.data.error}}{{end}}
+    cache_ttl_seconds: 300
+    rate_limit_rpm: 20
+
+  - name: slack_react
+    description: Add an emoji reaction to a message
+    method: POST
+    url: https://slack.com/api/reactions.add
+    headers:
+      Content-Type: application/json
+    body_template: |
+      {"channel":"{{.channel}}","name":"{{.emoji}}","timestamp":"{{.timestamp}}"}
+    parameters:
+      - name: channel
+        description: Channel ID containing the message
+        required: true
+      - name: emoji
+        description: Emoji name (without colons)
+        required: true
+      - name: timestamp
+        description: Message timestamp to react to
+        required: true
+    rate_limit_rpm: 30
+    timeout_seconds: 10
+
+prompts:
+  system: |
+    You have Slack integration endpoints available. When using Slack:
+    - Always specify channel IDs (not names) for posting — use slack_channels to find IDs
+    - Use thread_ts to reply in threads instead of creating new messages
+    - Keep messages concise and well-formatted using Slack markdown
+    - Use reactions appropriately to acknowledge messages

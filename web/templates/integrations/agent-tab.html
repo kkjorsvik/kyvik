@@ -1,0 +1,83 @@
+{{define "agent-integrations-tab"}}
+<div>
+  <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+    <h3 style="margin: 0;">Installed Integrations</h3>
+    <a href="/integrations" class="btn btn-primary btn-sm">Add Integration</a>
+  </div>
+
+  {{if .Installed}}
+  <table class="table">
+    <thead>
+      <tr>
+        <th>Integration</th>
+        <th>Category</th>
+        <th>Endpoints</th>
+        <th>Actions</th>
+      </tr>
+    </thead>
+    <tbody>
+      {{range .Installed}}
+      <tr>
+        <td>
+          <a href="/integrations/{{.Name}}">{{.DisplayName}}</a>
+          <div style="font-size: 0.85rem; color: var(--text-muted);">{{.Description}}</div>
+        </td>
+        <td><span class="badge badge-info">{{.Category}}</span></td>
+        <td>{{.EndpointCount}}</td>
+        <td>
+          <form method="POST" action="/integrations/{{.Name}}/uninstall" style="display: inline;"
+                hx-post="/integrations/{{.Name}}/uninstall" hx-confirm="Remove this integration from the agent?">
+            <input type="hidden" name="agent_id" value="{{$.Agent.ID}}">
+            <button type="submit" class="btn btn-danger btn-sm">Remove</button>
+          </form>
+        </td>
+      </tr>
+      {{end}}
+    </tbody>
+  </table>
+  {{else}}
+  <div class="empty-state">
+    <p>No integrations installed. <a href="/integrations">Browse the catalog</a> to add integrations.</p>
+  </div>
+  {{end}}
+
+  <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 2rem; margin-bottom: 1rem;">
+    <h3 style="margin: 0;">Installed Native Tools</h3>
+    <a href="/integrations" class="btn btn-secondary btn-sm">Add Native Tool</a>
+  </div>
+
+  {{if .InstalledNativeTools}}
+  <table class="table">
+    <thead>
+      <tr>
+        <th>Tool</th>
+        <th>Category</th>
+        <th>Actions</th>
+      </tr>
+    </thead>
+    <tbody>
+      {{range .InstalledNativeTools}}
+      <tr>
+        <td>
+          <a href="/integrations/native/{{.Name}}">{{.DisplayName}}</a>
+          <div style="font-size: 0.85rem; color: var(--text-muted);">{{.Description}}</div>
+        </td>
+        <td><span class="badge badge-info">{{.Category}}</span></td>
+        <td>
+          <form method="POST" action="/integrations/native/{{.Name}}/uninstall" style="display: inline;"
+                hx-post="/integrations/native/{{.Name}}/uninstall" hx-confirm="Remove this native tool from the agent?">
+            <input type="hidden" name="agent_id" value="{{$.Agent.ID}}">
+            <button type="submit" class="btn btn-danger btn-sm">Remove</button>
+          </form>
+        </td>
+      </tr>
+      {{end}}
+    </tbody>
+  </table>
+  {{else}}
+  <div class="empty-state">
+    <p>No native tools installed. <a href="/integrations">Browse the catalog</a> to add tools like GitHub or NorthstarOS.</p>
+  </div>
+  {{end}}
+</div>
+{{end}}

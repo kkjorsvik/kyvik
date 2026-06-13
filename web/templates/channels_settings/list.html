@@ -1,0 +1,87 @@
+{{define "channels-settings-list"}}
+<div class="page-header">
+  <div>
+    <h2>Channels</h2>
+    <p>Manage communication channel connections for your agents</p>
+  </div>
+</div>
+
+<div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(380px, 1fr)); gap: 1rem;">
+  {{range .Channels}}
+  <div class="card">
+    <div class="card-body" style="display: flex; flex-direction: column; gap: 12px;">
+      <div style="display: flex; align-items: center; justify-content: space-between;">
+        <div style="display: flex; align-items: center; gap: 10px;">
+          {{if eq .Type "slack"}}
+          <span style="font-size: 24px; width: 32px; text-align: center;">
+            <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 10c-.83 0-1.5-.67-1.5-1.5v-5c0-.83.67-1.5 1.5-1.5s1.5.67 1.5 1.5v5c0 .83-.67 1.5-1.5 1.5z"/><path d="M20.5 10H19V8.5c0-.83.67-1.5 1.5-1.5s1.5.67 1.5 1.5-.67 1.5-1.5 1.5z"/><path d="M9.5 14c.83 0 1.5.67 1.5 1.5v5c0 .83-.67 1.5-1.5 1.5S8 21.33 8 20.5v-5c0-.83.67-1.5 1.5-1.5z"/><path d="M3.5 14H5v1.5c0 .83-.67 1.5-1.5 1.5S2 16.33 2 15.5 2.67 14 3.5 14z"/><path d="M14 14.5c0-.83.67-1.5 1.5-1.5h5c.83 0 1.5.67 1.5 1.5s-.67 1.5-1.5 1.5h-5c-.83 0-1.5-.67-1.5-1.5z"/><path d="M15.5 19H14v1.5c0 .83.67 1.5 1.5 1.5s1.5-.67 1.5-1.5-.67-1.5-1.5-1.5z"/><path d="M10 9.5C10 10.33 9.33 11 8.5 11h-5C2.67 11 2 10.33 2 9.5S2.67 8 3.5 8h5c.83 0 1.5.67 1.5 1.5z"/><path d="M8.5 5H10V3.5C10 2.67 9.33 2 8.5 2S7 2.67 7 3.5 7.67 5 8.5 5z"/></svg>
+          </span>
+          {{else if eq .Type "discord"}}
+          <span style="font-size: 24px; width: 32px; text-align: center;">
+            <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/><path d="M8 9h8"/><path d="M8 13h5"/></svg>
+          </span>
+          {{end}}
+          <div>
+            <strong style="font-size: 16px;">{{.DisplayName}}</strong>
+            <div style="font-size: 12px; color: var(--text-muted);">{{.Description}}</div>
+          </div>
+        </div>
+        <div>
+          {{if .Enabled}}
+            {{if .Connected}}
+              <span class="badge badge-running">connected</span>
+            {{else}}
+              <span class="badge badge-error">error</span>
+            {{end}}
+          {{else}}
+            <span class="badge badge-stopped">disabled</span>
+          {{end}}
+        </div>
+      </div>
+
+      {{if .Enabled}}
+      <div style="font-size: 13px; color: var(--text-secondary); display: flex; gap: 16px;">
+        <span>Primary: {{if .PrimaryConnected}}active{{else}}unavailable{{end}}</span>
+        <span>Dedicated: {{.DedicatedCount}} adapter{{if ne .DedicatedCount 1}}s{{end}}</span>
+        {{if .AutoProvision}}<span>Auto-provision: on</span>{{end}}
+      </div>
+      {{end}}
+
+      {{if .Error}}
+      <div style="padding: 8px 12px; background: var(--danger-bg, rgba(239,68,68,0.1)); border: 1px solid var(--danger-border, rgba(239,68,68,0.3)); border-radius: 6px; font-size: 13px; color: var(--text-danger, #ef4444);">
+        {{.Error}}
+      </div>
+      {{end}}
+
+      <div style="display: flex; gap: 8px; margin-top: auto;">
+        <a href="/channels/settings/{{.Type}}/edit" class="btn btn-secondary" style="flex: 1; text-align: center;">Configure</a>
+        {{if .Enabled}}
+        <button class="btn btn-danger"
+                hx-post="/channels/settings/{{.Type}}/toggle"
+                hx-target=".main-content"
+                hx-swap="innerHTML"
+                hx-confirm="Disconnect {{.DisplayName}}? Running agents using this channel will lose connectivity.">Disconnect</button>
+        {{else if .HasTokens}}
+        <button class="btn btn-primary"
+                hx-post="/channels/settings/{{.Type}}/toggle"
+                hx-target=".main-content"
+                hx-swap="innerHTML">Connect</button>
+        {{end}}
+      </div>
+    </div>
+  </div>
+  {{end}}
+</div>
+{{end}}
+
+{{define "channels-test-result"}}
+{{if .Success}}
+<div style="padding: 12px; background: var(--success-bg, rgba(34,197,94,0.1)); border: 1px solid var(--success-border, rgba(34,197,94,0.3)); border-radius: 6px; margin-top: 8px;">
+  Connection successful.
+</div>
+{{else}}
+<div style="padding: 12px; background: var(--danger-bg, rgba(239,68,68,0.1)); border: 1px solid var(--danger-border, rgba(239,68,68,0.3)); border-radius: 6px; margin-top: 8px;">
+  Connection failed: {{.Error}}
+</div>
+{{end}}
+{{end}}

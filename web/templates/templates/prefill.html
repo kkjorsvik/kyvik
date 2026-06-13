@@ -1,0 +1,49 @@
+{{define "template-prefill"}}
+<input type="hidden" name="from_template_id" value="{{.TemplateID}}">
+<input type="hidden" name="system_prompt" value="{{.Config.SystemPrompt}}">
+<input type="hidden" name="soul_content" value="{{.Config.SoulContent}}">
+<input type="hidden" name="identity_content" value="{{.Config.IdentityContent}}">
+<input type="hidden" name="provider" value="{{.Config.ModelConfig.Provider}}">
+<input type="hidden" name="model" value="{{.Config.ModelConfig.Model}}">
+<input type="hidden" name="template" value="{{.Config.Template}}">
+<input type="hidden" name="model_slots_json" value="{{.SlotsJSON}}">
+<input type="hidden" name="routing_config_json" value="{{.RoutingJSON}}">
+{{if .Config.Limits.MaxTokensPerDay}}<input type="hidden" name="max_tokens_per_day" value="{{.Config.Limits.MaxTokensPerDay}}">{{end}}
+{{if .Config.Limits.MaxTokensPerMonth}}<input type="hidden" name="max_tokens_per_month" value="{{.Config.Limits.MaxTokensPerMonth}}">{{end}}
+{{if .Config.Limits.MaxSpendPerDay}}<input type="hidden" name="max_spend_per_day" value="{{printf "%.2f" .Config.Limits.MaxSpendPerDay}}">{{end}}
+{{if .Config.Limits.MaxSpendPerMonth}}<input type="hidden" name="max_spend_per_month" value="{{printf "%.2f" .Config.Limits.MaxSpendPerMonth}}">{{end}}
+{{if .Config.HistoryLimit}}<input type="hidden" name="history_limit" value="{{.Config.HistoryLimit}}">{{end}}
+{{if .Config.MemoryLimit}}<input type="hidden" name="memory_limit" value="{{.Config.MemoryLimit}}">{{end}}
+{{if .ToolGrantsJSON}}<input type="hidden" name="tool_grants_json" value="{{.ToolGrantsJSON}}">{{end}}
+<input type="hidden" name="locked_json" value="{{.LockedJSON}}">
+<input type="hidden" name="constrained_json" value="{{.ConstrainedJSON}}">
+<div id="prefill-data"
+  data-name="{{.Config.Name}}"
+  data-description="{{.Config.Description}}"
+  data-tier="{{.Config.Template}}"
+  style="display:none;"></div>
+<script>
+(function() {
+  var d = document.getElementById('prefill-data');
+  if (!d) return;
+  var nameInput = document.getElementById('name');
+  var descInput = document.getElementById('description');
+  if (nameInput && !nameInput.value) nameInput.value = d.dataset.name;
+  if (descInput && !descInput.value) descInput.value = d.dataset.description;
+  var tier = d.dataset.tier;
+  if (tier) {
+    var radios = document.querySelectorAll('input[name="template"]');
+    for (var i = 0; i < radios.length; i++) {
+      if (radios[i].value === tier) {
+        radios[i].checked = true;
+        radios[i].dispatchEvent(new Event('change', {bubbles: true}));
+        break;
+      }
+    }
+  }
+  var qb = document.getElementById('quick-create-btn');
+  if (qb) qb.style.display = '';
+})();
+</script>
+<div class="alert alert-success" style="font-size: 13px;">Template loaded. Locked fields will be disabled in subsequent steps.</div>
+{{end}}

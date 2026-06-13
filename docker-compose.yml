@@ -1,0 +1,38 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: kyvik-postgres
+    environment:
+      POSTGRES_USER: kyvik
+      POSTGRES_PASSWORD: kyvik
+      POSTGRES_DB: kyvik
+    volumes:
+      - kyvik-pgdata:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U kyvik"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  kyvik:
+    build: .
+    container_name: kyvik
+    ports:
+      - "8080:8080"
+    volumes:
+      - kyvik-data:/app/data
+    env_file:
+      - .env
+    environment:
+      KYVIK_DB_DSN: "postgres://kyvik:kyvik@postgres:5432/kyvik?sslmode=disable"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+
+volumes:
+  kyvik-data:
+  kyvik-pgdata:

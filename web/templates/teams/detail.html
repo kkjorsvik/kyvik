@@ -1,0 +1,336 @@
+{{define "team-detail"}}
+<div class="page-header">
+  <div>
+    <h2>{{.Team.Name}}</h2>
+    <p>
+      <span class="badge {{if eq .Team.Communication "open"}}badge-info{{else}}badge-default{{end}}">{{.Team.Communication}}</span>
+      {{if .Team.Active}}
+      <span class="badge badge-running" style="margin-left: 6px;">active</span>
+      {{else}}
+      <span class="badge badge-warning" style="margin-left: 6px;">paused</span>
+      {{end}}
+      {{if .Team.Description}}<span style="margin-left: 8px; color: var(--text-secondary);">{{.Team.Description}}</span>{{end}}
+    </p>
+  </div>
+  <div style="display: flex; gap: 8px;">
+    {{if .Team.Active}}
+    <button class="btn btn-secondary" hx-post="/teams/{{.Team.ID}}/pause" hx-confirm="Pause communication for '{{.Team.Name}}'?" hx-target="body">Pause Team</button>
+    {{else}}
+    <button class="btn btn-primary" hx-post="/teams/{{.Team.ID}}/resume" hx-confirm="Resume communication for '{{.Team.Name}}'?" hx-target="body">Resume Team</button>
+    {{end}}
+    <a href="/teams/{{.Team.ID}}/edit" class="btn btn-secondary">Edit Team</a>
+    <button class="btn btn-danger" hx-post="/teams/{{.Team.ID}}/delete" hx-confirm="Delete team '{{.Team.Name}}'? This will remove team membership from all members." hx-target="body">Delete Team</button>
+  </div>
+</div>
+
+<div class="stat-grid">
+  <div class="stat-card">
+    <div class="stat-label">Members</div>
+    <div class="stat-value">{{len .Members}}</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">Aggregate Status</div>
+    <div class="stat-value" style="font-size: 16px;"><span class="badge {{if eq .AggregateStatus "all running"}}badge-running{{else if eq .AggregateStatus "all stopped"}}badge-stopped{{else}}badge-warning{{end}}">{{.AggregateStatus}}</span></div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">Tokens Today</div>
+    <div class="stat-value">{{if .TeamSpending}}{{.TeamSpending.DayTokens}}{{else}}0{{end}}</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">Cost Today</div>
+    <div class="stat-value">${{if .TeamSpending}}{{printf "%.4f" .TeamSpending.DayCost}}{{else}}0.0000{{end}}</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">Tokens This Month</div>
+    <div class="stat-value">{{if .TeamSpending}}{{.TeamSpending.MonthTokens}}{{else}}0{{end}}</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">Cost This Month</div>
+    <div class="stat-value">${{if .TeamSpending}}{{printf "%.4f" .TeamSpending.MonthCost}}{{else}}0.0000{{end}}</div>
+  </div>
+</div>
+
+<div class="card mt-2">
+  <div class="card-header"><h3>Members</h3></div>
+  <div class="card-body" style="padding: 0;">
+    <table class="table">
+      <thead>
+        <tr>
+          <th>Agent</th>
+          <th>Role</th>
+          <th>Status</th>
+          <th>Pending</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {{range .Members}}
+        <tr>
+          <td><a href="/agents/{{.ID}}">{{.Name}}</a></td>
+          <td>{{if .IsLeader}}<span class="badge badge-default">Leader</span>{{else}}Member{{end}}</td>
+          <td><span class="badge badge-{{.Status}}">{{.Status}}</span></td>
+          <td>{{.QueueDepth}}</td>
+          <td>
+            {{if .IsLeader}}
+            <span style="color: var(--text-muted);">-</span>
+            {{else}}
+            <form method="POST" action="/teams/{{$.Team.ID}}/edit" style="display: inline;">
+              <input type="hidden" name="remove_member" value="{{.ID}}" />
+              <button class="btn btn-sm btn-secondary" type="submit">Remove from team</button>
+            </form>
+            {{end}}
+          </td>
+        </tr>
+        {{end}}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<div class="card mt-2" id="team-shared-context">
+  {{template "team-shared-context" .}}
+</div>
+
+<div class="card mt-2">
+  <div class="card-header"><h3>Message Queues</h3></div>
+  <div class="card-body" id="team-queues"
+       hx-get="/teams/{{.Team.ID}}/queues" hx-trigger="load, every 5s" hx-swap="innerHTML">
+    Loading queue data...
+  </div>
+</div>
+
+<div class="card mt-2">
+  <div class="card-header"><h3>Recent Messages</h3></div>
+  <div class="card-body" id="team-messages-feed" hx-get="/teams/{{.Team.ID}}/messages" hx-trigger="load, every 5s" hx-swap="innerHTML">
+    {{template "team-messages" .}}
+  </div>
+</div>
+
+<div class="card mt-2">
+  <div class="card-header"><h3>Team Tools Activity</h3></div>
+  <div class="card-body" style="padding: 0;">
+    {{if .TeamActivities}}
+    <table class="table">
+      <thead>
+        <tr>
+          <th>Agent</th>
+          <th>Tool</th>
+          <th>Decision</th>
+          <th>Timestamp</th>
+        </tr>
+      </thead>
+      <tbody>
+        {{range .TeamActivities}}
+        <tr>
+          <td><a href="/agents/{{.AgentID}}">{{.AgentName}}</a></td>
+          <td><span class="text-mono">{{.Resource}}</span></td>
+          <td><span class="badge {{if eq .Decision "success"}}badge-running{{else if eq .Decision "allowed"}}badge-running{{else}}badge-stopped{{end}}">{{.Decision}}</span></td>
+          <td>{{localTime .Timestamp "2006-01-02 15:04:05"}}</td>
+        </tr>
+        {{end}}
+      </tbody>
+    </table>
+    {{else}}
+    <p style="padding: 16px; color: var(--text-muted); margin: 0;">No team tool activity recorded yet.</p>
+    {{end}}
+  </div>
+</div>
+{{end}}
+
+{{define "team-shared-context"}}
+<div class="card-header"><h3>Shared Context</h3></div>
+<div class="card-body">
+  <form method="POST" action="/teams/{{.Team.ID}}/context" hx-post="/teams/{{.Team.ID}}/context" hx-target="#team-shared-context" hx-swap="outerHTML">
+    <div class="form-group">
+      <textarea id="shared_context" name="shared_context" rows="6" class="form-textarea" oninput="document.getElementById('shared-context-count').textContent = this.value.length">{{.Team.SharedContext}}</textarea>
+      <small style="color: var(--text-muted);"><span id="shared-context-count">{{len .Team.SharedContext}}</span> characters</small>
+    </div>
+    <div style="margin-top: 8px; display: flex; justify-content: flex-end;">
+      <button class="btn btn-primary" type="submit">Save</button>
+    </div>
+  </form>
+</div>
+{{end}}
+
+{{define "team-messages"}}
+{{if .Messages}}
+<div style="display: grid; gap: 8px;">
+  {{range .Messages}}
+  <div class="card" style="margin: 0;">
+    <div class="card-body" style="padding: 10px 12px;">
+      <div style="display: flex; justify-content: space-between; gap: 12px; align-items: baseline;">
+        <div>
+          <strong>[{{.FromName}} → {{.ToName}}]</strong>
+          <span class="badge {{if eq .Priority "urgent"}}badge-warning{{else}}badge-default{{end}}" style="margin-left: 6px;">{{.MessageType}}</span>
+        </div>
+        <span style="font-size: 12px; color: var(--text-muted);">{{localTime .Timestamp "2006-01-02 15:04:05"}}</span>
+      </div>
+      <div style="margin-top: 6px; color: var(--text-secondary);">"{{.Preview}}"</div>
+    </div>
+  </div>
+  {{end}}
+</div>
+{{else}}
+<p style="color: var(--text-muted); margin: 0;">No recent inter-agent messages for this team.</p>
+{{end}}
+{{end}}
+
+{{define "team-queues"}}
+{{if .Members}}
+<div style="display: grid; gap: 12px; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));">
+  {{range .Members}}
+  <div class="card" style="margin: 0;">
+    <div class="card-body" style="padding: 12px;">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+        <strong>{{.AgentName}}</strong>
+        {{if .IsLeader}}<span class="badge badge-default">Leader</span>{{end}}
+      </div>
+      <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; text-align: center; font-size: 13px;">
+        <div>
+          <div style="color: var(--text-muted);">Pending</div>
+          <div style="font-weight: 600;">{{.Stats.Pending}}</div>
+        </div>
+        <div>
+          <div style="color: var(--text-muted);">Active</div>
+          <div style="font-weight: 600;">{{.Stats.Processing}}</div>
+        </div>
+        <div>
+          <div style="color: var(--text-muted);">Done</div>
+          <div style="font-weight: 600;">{{.Stats.Completed}}</div>
+        </div>
+        <div>
+          <div style="color: var(--text-muted);">Failed</div>
+          <div style="font-weight: 600; {{if gt .Stats.Failed 0}}color: var(--danger);{{end}}">{{.Stats.Failed}}</div>
+        </div>
+      </div>
+      <div style="margin-top: 10px; text-align: right;">
+        <a href="/teams/{{$.Team.ID}}/queues/{{.AgentID}}" class="btn btn-sm btn-secondary">View Queue</a>
+      </div>
+    </div>
+  </div>
+  {{end}}
+</div>
+{{else}}
+<p style="color: var(--text-muted); margin: 0;">No team members.</p>
+{{end}}
+{{end}}
+
+{{define "team-agent-queue"}}
+<div class="page-header">
+  <div>
+    <h2>{{.AgentName}} — Message Queue</h2>
+    <p><a href="/teams/{{.Team.ID}}">Back to {{.Team.Name}}</a></p>
+  </div>
+</div>
+
+<div class="stat-grid">
+  <div class="stat-card">
+    <div class="stat-label">Pending</div>
+    <div class="stat-value">{{.Stats.Pending}}</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">Processing</div>
+    <div class="stat-value">{{.Stats.Processing}}</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">Completed</div>
+    <div class="stat-value">{{.Stats.Completed}}</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">Failed</div>
+    <div class="stat-value" {{if gt .Stats.Failed 0}}style="color: var(--danger);"{{end}}>{{.Stats.Failed}}</div>
+  </div>
+</div>
+
+<div class="card mt-2">
+  <div class="card-header">
+    <div style="display: flex; justify-content: space-between; align-items: center;">
+      <h3>Messages</h3>
+      <div style="display: flex; gap: 4px;">
+        <a href="/teams/{{.Team.ID}}/queues/{{.AgentID}}" class="btn btn-sm {{if eq .StatusFilter ""}}btn-primary{{else}}btn-secondary{{end}}">All</a>
+        <a href="/teams/{{.Team.ID}}/queues/{{.AgentID}}?status=pending" class="btn btn-sm {{if eq .StatusFilter "pending"}}btn-primary{{else}}btn-secondary{{end}}">Pending</a>
+        <a href="/teams/{{.Team.ID}}/queues/{{.AgentID}}?status=processing" class="btn btn-sm {{if eq .StatusFilter "processing"}}btn-primary{{else}}btn-secondary{{end}}">Processing</a>
+        <a href="/teams/{{.Team.ID}}/queues/{{.AgentID}}?status=completed" class="btn btn-sm {{if eq .StatusFilter "completed"}}btn-primary{{else}}btn-secondary{{end}}">Completed</a>
+        <a href="/teams/{{.Team.ID}}/queues/{{.AgentID}}?status=failed" class="btn btn-sm {{if eq .StatusFilter "failed"}}btn-primary{{else}}btn-secondary{{end}}">Failed</a>
+      </div>
+    </div>
+  </div>
+  <div class="card-body" style="padding: 0;">
+    {{if .Messages}}
+    <table class="table">
+      <thead>
+        <tr>
+          <th>ID</th>
+          <th>From</th>
+          <th>Content</th>
+          <th>Type</th>
+          <th>Status</th>
+          <th>Created</th>
+          <th>Wait</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {{range .Messages}}
+        <tr>
+          <td>{{.DisplayID}}</td>
+          <td>{{if .SenderName}}{{.SenderName}}{{else}}<span style="color: var(--text-muted);">-</span>{{end}}</td>
+          <td style="max-width: 300px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{{.Preview}}</td>
+          <td><span class="badge badge-default">{{.MessageType}}</span></td>
+          <td><span class="badge badge-{{.Status}}">{{.Status}}</span></td>
+          <td style="font-size: 12px;">{{localTime .CreatedAt "Jan 02 15:04:05"}}</td>
+          <td>{{if .WaitTime}}{{.WaitTime}}{{else}}-{{end}}</td>
+          <td style="white-space: nowrap;">
+            {{if .ShowActions}}
+            <button class="btn btn-sm btn-secondary"
+                    hx-get="/teams/{{$.Team.ID}}/queues/message/{{.ID}}"
+                    hx-target="#queue-message-detail"
+                    hx-swap="innerHTML">View</button>
+            {{if eq .Status "failed"}}
+            <button class="btn btn-sm btn-primary"
+                    hx-post="/teams/{{$.Team.ID}}/queues/{{.ID}}/retry"
+                    hx-confirm="Retry this message?">Retry</button>
+            {{end}}
+            <button class="btn btn-sm btn-danger"
+                    hx-post="/teams/{{$.Team.ID}}/queues/{{.ID}}/delete"
+                    hx-confirm="Delete this message?">Delete</button>
+            {{else}}
+            <span style="color: var(--text-muted);">-</span>
+            {{end}}
+          </td>
+        </tr>
+        {{end}}
+      </tbody>
+    </table>
+    {{else}}
+    <p style="padding: 16px; color: var(--text-muted); margin: 0;">No messages{{if .StatusFilter}} with status "{{.StatusFilter}}"{{end}}.</p>
+    {{end}}
+  </div>
+</div>
+
+<div id="queue-message-detail" class="mt-2"></div>
+{{end}}
+
+{{define "team-queue-message-detail"}}
+<div class="card">
+  <div class="card-header">
+    <div style="display: flex; justify-content: space-between; align-items: center;">
+      <h3>Message #{{.Message.DisplayID}}</h3>
+      <span class="badge badge-{{.Message.Status}}">{{.Message.Status}}</span>
+    </div>
+  </div>
+  <div class="card-body">
+    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 12px; font-size: 13px;">
+      <div><strong>From:</strong> {{if .Message.SenderName}}{{.Message.SenderName}}{{else}}{{.Message.Sender}}{{end}}</div>
+      <div><strong>Channel:</strong> {{.Message.Channel}}</div>
+      <div><strong>Type:</strong> {{.Message.MessageType}}</div>
+      <div><strong>Attempts:</strong> {{.Message.Attempts}} / {{.Message.MaxAttempts}}</div>
+      <div><strong>Created:</strong> {{localTime .Message.CreatedAt "2006-01-02 15:04:05"}}</div>
+      <div>
+        {{if .Message.CompletedAt}}<strong>Completed:</strong> {{localTime .Message.CompletedAt "2006-01-02 15:04:05"}}{{end}}
+      </div>
+    </div>
+    <div style="background: var(--stripe-color); border-radius: 4px; padding: 12px; white-space: pre-wrap; font-family: monospace; font-size: 13px; max-height: 400px; overflow-y: auto;">{{.Message.Content}}</div>
+  </div>
+</div>
+{{end}}

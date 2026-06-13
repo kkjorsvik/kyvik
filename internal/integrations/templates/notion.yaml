@@ -1,0 +1,275 @@
+name: notion
+display_name: Notion
+description: Knowledge management with Notion — search, read, and create pages, and query databases.
+version: 1.1.0
+category: knowledge
+icon: notion
+auth:
+  type: bearer
+  secret_ref: notion_token
+  setup_url: https://www.notion.so/my-integrations
+  instructions: |
+    1. Go to https://www.notion.so/my-integrations
+    2. Click "New integration"
+    3. Name it and select the workspace
+    4. Copy the Internal Integration Token
+    5. Share the pages/databases you want the agent to access with the integration
+
+endpoints:
+  - name: notion_search
+    description: Search pages and databases in Notion
+    method: POST
+    url: https://api.notion.com/v1/search
+    headers:
+      Content-Type: application/json
+      Notion-Version: "2022-06-28"
+    body_template: |
+      {"query":"{{.query}}","page_size":{{or .limit 10}}{{if .object_type}},"filter":{"value":"{{.object_type}}","property":"object"}{{end}}}
+    parameters:
+      - name: query
+        description: Search query text
+        required: true
+      - name: limit
+        description: Max results to return
+        required: false
+        type: int
+        default: "10"
+      - name: object_type
+        description: Filter by object type
+        required: false
+        example: "page"
+    response_template: |
+      {{if .data.results}}Found {{len .data.results}} results:
+      {{range .data.results}}- [{{.object}}] {{if .properties.title}}{{range .properties.title.title}}{{.plain_text}}{{end}}{{else if .properties.Name}}{{range .properties.Name.title}}{{.plain_text}}{{end}}{{else}}(untitled){{end}}
+      {{end}}{{end}}
+    rate_limit_rpm: 20
+    timeout_seconds: 15
+
+  - name: notion_read_page
+    description: Read the content of a Notion page
+    method: GET
+    url: "https://api.notion.com/v1/blocks/{{.page_id}}/children"
+    headers:
+      Notion-Version: "2022-06-28"
+    query_params:
+      page_size: "{{or .limit 50}}"
+    parameters:
+      - name: page_id
+        description: ID of the page to read
+        required: true
+      - name: limit
+        description: Max blocks to return
+        required: false
+        type: int
+        default: "50"
+    rate_limit_rpm: 20
+    timeout_seconds: 15
+
+  - name: notion_create_page
+    description: Create a new page in a Notion database
+    method: POST
+    url: https://api.notion.com/v1/pages
+    headers:
+      Content-Type: application/json
+      Notion-Version: "2022-06-28"
+    body_template: |
+      {"parent":{"database_id":"{{.database_id}}"},"properties":{"title":{"title":[{"text":{"content":"{{.title}}"}}]}},"children":[{"object":"block","type":"paragraph","paragraph":{"rich_text":[{"text":{"content":"{{.content}}"}}]}}]}
+    parameters:
+      - name: database_id
+        description: Parent database ID
+        required: true
+      - name: title
+        description: Page title
+        required: true
+      - name: content
+        description: Page body text
+        required: true
+    rate_limit_rpm: 10
+    timeout_seconds: 15
+
+  - name: notion_query_database
+    description: Query a Notion database with optional filters
+    method: POST
+    url: "https://api.notion.com/v1/databases/{{.database_id}}/query"
+    headers:
+      Content-Type: application/json
+      Notion-Version: "2022-06-28"
+    body_template: |
+      {"page_size":{{or .limit 25}}{{if .filter}},"filter":{{.filter}}{{end}}{{if .sorts}},"sorts":{{.sorts}}{{end}}}
+    parameters:
+      - name: database_id
+        description: Database ID to query
+        required: true
+      - name: limit
+        description: Max results to return
+        required: false
+        type: int
+        default: "25"
+      - name: filter
+        description: Notion filter object (JSON)
+        required: false
+        type: object
+      - name: sorts
+        description: Sort rules (JSON array)
+        required: false
+        type: array
+    rate_limit_rpm: 20
+    timeout_seconds: 15
+
+  - name: notion_get_page
+    description: Get metadata and properties of a Notion page (title, database columns, parent, etc.)
+    method: GET
+    url: "https://api.notion.com/v1/pages/{{.page_id}}"
+    headers:
+      Notion-Version: "2022-06-28"
+    parameters:
+      - name: page_id
+        description: Page ID to retrieve
+        required: true
+    cache_ttl_seconds: 60
+    rate_limit_rpm: 20
+    timeout_seconds: 15
+
+  - name: notion_get_database
+    description: Get the schema and properties of a Notion database (column names, types, options)
+    method: GET
+    url: "https://api.notion.com/v1/databases/{{.database_id}}"
+    headers:
+      Notion-Version: "2022-06-28"
+    parameters:
+      - name: database_id
+        description: Database ID to retrieve
+        required: true
+    cache_ttl_seconds: 120
+    rate_limit_rpm: 20
+    timeout_seconds: 15
+
+  - name: notion_update_page
+    description: Update properties of an existing Notion page (e.g. status, assignee, date fields)
+    method: PATCH
+    url: "https://api.notion.com/v1/pages/{{.page_id}}"
+    headers:
+      Content-Type: application/json
+      Notion-Version: "2022-06-28"
+    body_template: |
+      {"properties":{{.properties}}}
+    parameters:
+      - name: page_id
+        description: Page ID to update
+        required: true
+      - name: properties
+        description: Properties to update (JSON object)
+        required: true
+        type: object
+    rate_limit_rpm: 10
+    timeout_seconds: 15
+
+  - name: notion_archive_page
+    description: Archive (soft-delete) a Notion page
+    method: PATCH
+    url: "https://api.notion.com/v1/pages/{{.page_id}}"
+    headers:
+      Content-Type: application/json
+      Notion-Version: "2022-06-28"
+    body_template: |
+      {"archived":true}
+    parameters:
+      - name: page_id
+        description: Page ID to archive
+        required: true
+    rate_limit_rpm: 10
+    timeout_seconds: 15
+
+  - name: notion_append_blocks
+    description: Append blocks (paragraphs, headings, bullets, etc.) to an existing Notion page
+    method: PATCH
+    url: "https://api.notion.com/v1/blocks/{{.page_id}}/children"
+    headers:
+      Content-Type: application/json
+      Notion-Version: "2022-06-28"
+    body_template: |
+      {"children":{{.children}}}
+    parameters:
+      - name: page_id
+        description: Page ID to append blocks to
+        required: true
+      - name: children
+        description: Block objects to append (JSON array)
+        required: true
+        type: array
+    rate_limit_rpm: 10
+    timeout_seconds: 15
+
+  - name: notion_list_users
+    description: List all users in the Notion workspace
+    method: GET
+    url: https://api.notion.com/v1/users
+    headers:
+      Notion-Version: "2022-06-28"
+    cache_ttl_seconds: 300
+    rate_limit_rpm: 10
+    timeout_seconds: 15
+
+  - name: notion_get_comments
+    description: Get comments on a Notion page or block
+    method: GET
+    url: https://api.notion.com/v1/comments
+    headers:
+      Notion-Version: "2022-06-28"
+    query_params:
+      block_id: "{{.block_id}}"
+    parameters:
+      - name: block_id
+        description: Block or page ID to get comments for
+        required: true
+    cache_ttl_seconds: 30
+    rate_limit_rpm: 20
+    timeout_seconds: 15
+
+  - name: notion_create_comment
+    description: Add a comment to a Notion page
+    method: POST
+    url: https://api.notion.com/v1/comments
+    headers:
+      Content-Type: application/json
+      Notion-Version: "2022-06-28"
+    body_template: |
+      {"parent":{"page_id":"{{.page_id}}"},"rich_text":[{"text":{"content":"{{.comment}}"}}]}
+    parameters:
+      - name: page_id
+        description: Page ID to comment on
+        required: true
+      - name: comment
+        description: Comment text
+        required: true
+    rate_limit_rpm: 10
+    timeout_seconds: 15
+
+prompts:
+  system: |
+    You have Notion integration available. Workflow tips:
+
+    Finding content:
+    - Use notion_search first to find pages/databases and get their UUIDs
+    - Pass object_type="page" or object_type="database" to narrow search results
+    - Use notion_get_database to inspect a database's property schema before filtering or creating pages
+
+    Reading:
+    - notion_read_page returns block children (body content)
+    - notion_get_page returns page metadata and property values (title, status, assignees, etc.)
+    - notion_get_comments returns comments on a page or block (pass block_id)
+
+    Writing:
+    - notion_create_page requires a parent database_id and creates a page with a title and text body
+    - notion_update_page takes a page_id and a `properties` JSON object — use notion_get_database first to know the property names and types
+    - notion_append_blocks takes a page_id and a `children` JSON array of block objects
+    - notion_archive_page soft-deletes a page (reversible in Notion UI)
+    - notion_create_comment adds a comment to a page without modifying its content
+
+    Querying databases:
+    - notion_query_database accepts optional `filter` (JSON object) and `sorts` (JSON array of sort objects)
+    - Use notion_get_database to discover filterable property names and types before constructing filter JSON
+    - Example filter for a Status property: {"property":"Status","select":{"equals":"Done"}}
+
+    Users:
+    - notion_list_users returns workspace members with their IDs — needed for assigning properties

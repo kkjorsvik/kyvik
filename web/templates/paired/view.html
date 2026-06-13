@@ -1,0 +1,144 @@
+{{define "paired-view"}}
+<div class="page-header">
+  <div>
+    <h2>{{.AgentAName}} ↔ {{.AgentBName}}</h2>
+    <p><span class="badge {{if eq .Conversation.Status "active"}}badge-running{{else if eq .Conversation.Status "paused"}}badge-warning{{else if eq .Conversation.Status "completed"}}badge-info{{else}}badge-stopped{{end}}">{{.Conversation.Status}}</span></p>
+  </div>
+  <div style="display: flex; gap: 8px;">
+    {{if eq .Conversation.Status "active"}}
+    <form method="POST" action="/paired/{{.Conversation.ID}}/pause"><button class="btn btn-secondary" type="submit">Pause</button></form>
+    {{else if eq .Conversation.Status "paused"}}
+    <form method="POST" action="/paired/{{.Conversation.ID}}/resume"><button class="btn btn-primary" type="submit">Resume</button></form>
+    {{end}}
+    {{if or (eq .Conversation.Status "active") (eq .Conversation.Status "paused")}}
+    <form method="POST" action="/paired/{{.Conversation.ID}}/stop"><button class="btn btn-danger" type="submit">Stop</button></form>
+    {{end}}
+    {{if or (eq .Conversation.Status "stopped") (eq .Conversation.Status "completed")}}
+    <a href="/paired/new?agent_a={{.Conversation.AgentA}}&agent_b={{.Conversation.AgentB}}&topic={{urlquery .Conversation.Topic}}" class="btn btn-primary">Duplicate</a>
+    {{end}}
+    <button class="btn btn-danger"
+            hx-post="/paired/{{.Conversation.ID}}/delete"
+            hx-confirm="Delete this conversation? All messages will be permanently removed."
+            hx-target="body">Delete</button>
+    <a href="/paired" class="btn btn-secondary">Back</a>
+  </div>
+</div>
+
+<div id="paired-live" hx-get="/paired/{{.Conversation.ID}}/messages" hx-trigger="load, every 2s, paired-refresh from:body" hx-swap="outerHTML">
+  {{template "paired-messages" .}}
+</div>
+
+{{if and .Conversation.AllowUserInjection (or (eq .Conversation.Status "active") (eq .Conversation.Status "paused"))}}
+<div class="card mt-2">
+  <div class="card-header"><h3>Inject Message</h3></div>
+  <div class="card-body">
+    <form id="inject-form" method="POST" action="/paired/{{.Conversation.ID}}/inject" hx-post="/paired/{{.Conversation.ID}}/inject" hx-on::after-request="if(!event.detail.successful) { document.getElementById('inject-error').textContent = event.detail.xhr.responseText; document.getElementById('inject-error').style.display = 'block'; } else { this.reset(); document.getElementById('inject-error').style.display = 'none'; }">
+      <div style="display: flex; gap: 8px; align-items: flex-start;">
+        <textarea name="message" rows="3" class="form-textarea" required placeholder="Inject guidance for the next turn..." style="flex: 1;"></textarea>
+        <button class="btn btn-primary" type="submit">Inject</button>
+      </div>
+      <div id="inject-error" style="display: none; color: var(--danger); margin-top: 8px; font-size: 14px;"></div>
+    </form>
+  </div>
+</div>
+{{end}}
+
+{{if or (eq .Conversation.Status "stopped") (eq .Conversation.Status "completed")}}
+<div class="card mt-2">
+  <div class="card-header"><h3>Continue Conversation</h3></div>
+  <div class="card-body">
+    {{if and .AgentAExists .AgentBExists}}
+    <form method="POST" action="/paired/{{.Conversation.ID}}/continue" hx-post="/paired/{{.Conversation.ID}}/continue" style="display: flex; gap: 8px; align-items: center;">
+      <label for="additional_turns">Additional turns per agent:</label>
+      <input type="number" name="additional_turns" id="additional_turns" value="5" min="1" max="100" style="width: 80px;" class="form-input">
+      <button class="btn btn-primary" type="submit">Continue</button>
+    </form>
+    {{else}}
+    <p style="color: var(--text-muted); margin: 0;">
+      <span class="badge badge-stopped">Cannot continue</span>
+      One or both agents have been deleted. Reassign agents below or duplicate with different agents.
+    </p>
+    {{end}}
+  </div>
+</div>
+
+<div class="card mt-2">
+  <div class="card-header"><h3>Reassign Agents</h3></div>
+  <div class="card-body">
+    {{if .Agents}}
+    <form method="POST" action="/paired/{{.Conversation.ID}}/agents" hx-post="/paired/{{.Conversation.ID}}/agents">
+      <div style="display: grid; grid-template-columns: 1fr 1fr auto; gap: 8px; align-items: end;">
+        <div>
+          <label for="agent_a">Agent A</label>
+          <select name="agent_a" id="agent_a" class="form-select" required>
+            {{range $.Agents}}
+            <option value="{{.ID}}" {{if eq .ID $.Conversation.AgentA}}selected{{end}}>{{.Name}}</option>
+            {{end}}
+          </select>
+        </div>
+        <div>
+          <label for="agent_b">Agent B</label>
+          <select name="agent_b" id="agent_b" class="form-select" required>
+            {{range $.Agents}}
+            <option value="{{.ID}}" {{if eq .ID $.Conversation.AgentB}}selected{{end}}>{{.Name}}</option>
+            {{end}}
+          </select>
+        </div>
+        <button class="btn btn-secondary" type="submit">Update Agents</button>
+      </div>
+    </form>
+    {{else}}
+    <p style="color: var(--text-muted); margin: 0;">No running agents available for reassignment.</p>
+    {{end}}
+  </div>
+</div>
+{{end}}
+{{end}}
+
+{{define "paired-messages"}}
+<div id="paired-live">
+  <div class="stat-grid">
+    <div class="stat-card"><div class="stat-label">Current Turn</div><div class="stat-value">{{.Conversation.CurrentTurn}} / {{.Conversation.MaxTurns}} per-agent</div></div>
+    <div class="stat-card"><div class="stat-label">Total Tokens</div><div class="stat-value">{{.Conversation.TotalTokens}}</div></div>
+    <div class="stat-card"><div class="stat-label">Estimated Cost</div><div class="stat-value">${{printf "%.4f" .Conversation.EstimatedCost}}</div></div>
+  </div>
+
+  <div class="card mt-2">
+    <div class="card-header"><h3>Conversation</h3></div>
+    <div class="card-body" id="paired-thread" style="display: grid; gap: 10px; max-height: 62vh; overflow-y: auto;">
+      {{if .Messages}}
+      {{range .Messages}}
+      <div style="display:flex; {{if eq .Side "right"}}justify-content:flex-end;{{else}}justify-content:flex-start;{{end}}">
+        <div style="max-width: 76%; border: 1px solid var(--border-color); border-radius: 10px; padding: 10px 12px; background: {{if .Injected}}rgba(250, 204, 21, 0.12){{else}}var(--card-bg){{end}};">
+          <div style="display:flex; justify-content:space-between; gap: 12px; margin-bottom: 6px;">
+            <div style="display:flex; align-items:center; gap: 8px;">
+              <span style="display:inline-flex; width:22px; height:22px; border-radius:999px; background: var(--border-color); align-items:center; justify-content:center; font-size: 12px; font-weight: 600;">{{.AgentInitial}}</span>
+              <strong>{{.AgentName}}</strong>
+              {{if .Injected}}<span class="badge badge-warning">Injected by operator</span>{{end}}
+            </div>
+            <span style="font-size:12px; color:var(--text-muted);">Turn {{.TurnNumber}}</span>
+          </div>
+          <div style="white-space: pre-wrap; line-height: 1.4;">{{.Content}}</div>
+          <div style="margin-top: 8px; display:flex; justify-content:space-between; font-size: 12px; color:var(--text-muted);">
+            <span>{{.Tokens}} tokens{{if gt .Cost 0.0}} • ${{printf "%.4f" .Cost}}{{end}}</span>
+            <span>{{localTime .CreatedAt "2006-01-02 15:04:05"}}</span>
+          </div>
+        </div>
+      </div>
+      {{end}}
+      {{else}}
+      <p style="color: var(--text-muted); margin: 0;">Waiting for first response...</p>
+      {{end}}
+    </div>
+  </div>
+</div>
+
+<script>
+(function() {
+  var thread = document.getElementById('paired-thread');
+  if (thread) {
+    thread.scrollTop = thread.scrollHeight;
+  }
+})();
+</script>
+{{end}}

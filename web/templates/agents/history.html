@@ -1,0 +1,74 @@
+{{define "agent-history"}}
+<div class="page-header">
+  <div>
+    <h2>{{.Agent.Name}} &mdash; History</h2>
+    <p>Conversation history across channels</p>
+  </div>
+  <div style="display: flex; gap: 0.5rem;">
+    <a href="/agents/{{.Agent.ID}}/chat" class="btn btn-primary btn-sm">Chat</a>
+    <a href="/agents" class="btn btn-secondary btn-sm">Back to Agents</a>
+  </div>
+</div>
+
+<div class="card" style="margin-bottom: 1rem;">
+  <div class="history-toolbar">
+    <form class="history-filters" hx-get="/agents/{{.Agent.ID}}/history" hx-target="body" hx-push-url="true">
+      <div class="history-filter-group">
+        <label for="channel-filter" style="font-size: 13px; font-weight: 600;">Channel</label>
+        <select id="channel-filter" name="channel" class="form-select" style="max-width: 180px;">
+          <option value="" {{if eq .ChannelFilter ""}}selected{{end}}>All Channels</option>
+          <option value="webui" {{if eq .ChannelFilter "webui"}}selected{{end}}>Web UI</option>
+          <option value="slack" {{if eq .ChannelFilter "slack"}}selected{{end}}>Slack</option>
+          <option value="internal" {{if eq .ChannelFilter "internal"}}selected{{end}}>Internal</option>
+        </select>
+      </div>
+      <div class="history-filter-group">
+        <label for="search-query" style="font-size: 13px; font-weight: 600;">Search</label>
+        <input type="text" id="search-query" name="q" class="form-input" style="max-width: 240px;" placeholder="Search messages..." value="{{.SearchQuery}}">
+      </div>
+      <button type="submit" class="btn btn-secondary btn-sm" style="align-self: flex-end;">Filter</button>
+    </form>
+    <div style="margin-left: auto; align-self: flex-end;">
+      <button class="btn btn-danger btn-sm" hx-post="/agents/{{.Agent.ID}}/history/clear" hx-confirm="Clear all history for this agent? This cannot be undone.">Clear History</button>
+    </div>
+  </div>
+</div>
+
+<div class="card" id="history-container">
+  {{template "history-entries" .}}
+</div>
+{{end}}
+
+{{define "history-entries"}}
+<div class="history-list">
+  {{if .Entries}}
+    {{range .Entries}}
+    <div class="history-entry history-entry-{{.Role}}">
+      <div class="history-entry-meta">
+        <span class="history-role badge {{if eq .Role "user"}}badge-reader{{else if eq .Role "assistant"}}badge-running{{else}}badge-stopped{{end}}">{{.Role}}</span>
+        <span class="history-channel text-mono">{{.Channel}}{{if .ChannelID}}/{{.ChannelID}}{{end}}</span>
+        {{if .Sender}}<span class="history-sender">{{.Sender}}</span>{{end}}
+        <span class="history-time">{{localTime .CreatedAt "2006-01-02 15:04:05"}}</span>
+        <span class="history-tokens text-mono" title="Estimated tokens">~{{.Tokens}} tok</span>
+      </div>
+      <div class="history-entry-content">{{.Content}}</div>
+    </div>
+    {{end}}
+    {{if .HasMore}}
+    <div style="text-align: center; padding: 16px;">
+      <button class="btn btn-secondary btn-sm"
+              hx-get="/agents/{{.AgentID}}/history/entries?offset={{.NextOffset}}{{if .ChannelFilter}}&channel={{.ChannelFilter}}{{end}}"
+              hx-target="#history-container"
+              hx-swap="innerHTML">
+        Load More
+      </button>
+    </div>
+    {{end}}
+  {{else}}
+    <div class="empty-state" style="padding: 32px 16px;">
+      <h3>No history yet</h3>
+      <p>Conversation messages will appear here as the agent processes them.</p>
+    </div>
+  {{end}}
+</div>
+{{end}}

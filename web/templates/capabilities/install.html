@@ -1,0 +1,210 @@
+{{define "capabilities-install"}}
+<div class="page-header">
+  <div>
+    <h2>{{.Capability.DisplayName}}</h2>
+    <p>{{.Capability.Description}}</p>
+    <div style="display: flex; gap: 0.35rem; flex-wrap: wrap; margin-top: 0.5rem;">
+      {{if eq (print .Capability.Type) "skill"}}<span class="badge badge-running">skill</span>{{end}}
+      {{if eq (print .Capability.Type) "integration"}}<span class="badge badge-info">REST</span>{{end}}
+      {{if eq (print .Capability.Type) "native_tool"}}<span class="badge badge-stopped">native</span>{{end}}
+      {{if .Capability.Category}}<span class="badge badge-info">{{.Capability.Category}}</span>{{end}}
+      {{if .Capability.MinTier}}<span class="badge badge-default">min tier: {{.Capability.MinTier}}</span>{{end}}
+    </div>
+  </div>
+  <div>
+    <a href="/capabilities{{if .AgentID}}?agent_id={{.AgentID}}{{end}}" class="btn btn-secondary">&larr; Back to Catalog</a>
+  </div>
+</div>
+
+{{if .Installed}}
+<div class="alert alert-success" style="margin-bottom: 1rem;">
+  <strong>Successfully installed {{.Capability.DisplayName}}.</strong>
+  {{if .Agent}}The capability is now available for <strong>{{.Agent.Name}}</strong>.{{end}}
+</div>
+{{end}}
+
+{{/* Dependencies summary */}}
+{{if or .Capability.RequiredNativeTools .Capability.RequiredIntegrations}}
+<div class="card" style="margin-bottom: 1rem;">
+  <div class="card-header"><h3>Dependencies</h3></div>
+  <div class="card-body">
+    <p style="color: var(--text-muted); margin-bottom: 0.5rem;">This capability requires the following to be installed first:</p>
+    <div style="display: flex; flex-wrap: wrap; gap: 0.35rem;">
+      {{range .Capability.RequiredNativeTools}}
+      <span class="badge badge-stopped">{{.DisplayName}} (native)</span>
+      {{end}}
+      {{range .Capability.RequiredIntegrations}}
+      <span class="badge badge-info">{{.DisplayName}} (REST)</span>
+      {{end}}
+    </div>
+  </div>
+</div>
+{{end}}
+
+<!-- Agent selector -->
+<div class="card" style="margin-bottom: 1rem;">
+  <div class="card-header"><h3>Select Agent</h3></div>
+  <div class="card-body">
+    <label for="agent-selector" style="font-weight: 500; margin-bottom: 0.5rem; display: block;">Agent</label>
+    <select id="agent-selector" class="form-select" style="max-width: 400px;"
+            onchange="window.location='/capabilities/{{.Capability.Name}}/install?agent_id='+this.value">
+      <option value="">Select an agent...</option>
+      {{range .Agents}}
+      <option value="{{.ID}}" {{if eq .ID $.AgentID}}selected{{end}}>{{.Name}} ({{.Template}})</option>
+      {{end}}
+    </select>
+  </div>
+</div>
+
+{{if and .AgentID .AgentStatus}}
+
+{{if .AgentStatus.Installed}}
+<!-- Already installed -->
+<div class="alert alert-info" style="margin-bottom: 1rem;">
+  <strong>{{.Capability.DisplayName}} is already installed</strong> for {{if .Agent}}{{.Agent.Name}}{{else}}this agent{{end}}.
+</div>
+<div style="display: flex; gap: 0.5rem;">
+  {{if eq (print .Capability.Type) "skill"}}
+  <form method="POST" action="/skills/{{.Capability.Name}}/revoke"
+        hx-post="/skills/{{.Capability.Name}}/revoke"
+        hx-confirm="Remove {{.Capability.DisplayName}} from this agent?">
+    <input type="hidden" name="agent_id" value="{{.AgentID}}">
+    <button type="submit" class="btn btn-danger">Remove</button>
+  </form>
+  {{end}}
+  {{if eq (print .Capability.Type) "integration"}}
+  <form method="POST" action="/integrations/{{.Capability.Name}}/uninstall"
+        hx-post="/integrations/{{.Capability.Name}}/uninstall"
+        hx-confirm="Remove {{.Capability.DisplayName}} from this agent?">
+    <input type="hidden" name="agent_id" value="{{.AgentID}}">
+    <button type="submit" class="btn btn-danger">Remove</button>
+  </form>
+  {{end}}
+  {{if eq (print .Capability.Type) "native_tool"}}
+  <form method="POST" action="/integrations/native/{{.Capability.Name}}/uninstall"
+        hx-post="/integrations/native/{{.Capability.Name}}/uninstall"
+        hx-confirm="Remove {{.Capability.DisplayName}} from this agent?">
+    <input type="hidden" name="agent_id" value="{{.AgentID}}">
+    <button type="submit" class="btn btn-danger">Remove</button>
+  </form>
+  {{end}}
+</div>
+
+{{else}}
+<!-- Install form -->
+
+{{if not .AgentStatus.TierOK}}
+<div class="alert alert-info" style="margin-bottom: 1rem;">
+  <strong>Tier upgrade required.</strong>
+  This capability requires agent tier <strong>{{.AgentStatus.RequiredTier}}</strong>.
+  {{if .Agent}}{{.Agent.Name}} is currently on tier <strong>{{.AgentStatus.AgentTier}}</strong>.{{end}}
+  Submitting this form will upgrade the agent tier automatically.
+</div>
+{{end}}
+
+{{if or .AgentStatus.UnmetNativeTools .AgentStatus.UnmetIntegrations}}
+<div class="alert alert-info" style="margin-bottom: 1rem;">
+  <strong>The following dependencies will also be installed:</strong>
+  <ul style="margin: 0.5rem 0 0 1.25rem; padding: 0;">
+    {{range .AgentStatus.UnmetNativeTools}}<li>{{.DisplayName}} (native tool)</li>{{end}}
+    {{range .AgentStatus.UnmetIntegrations}}<li>{{.DisplayName}} (REST integration)</li>{{end}}
+  </ul>
+</div>
+{{end}}
+
+<div class="card">
+  <div class="card-header"><h3>Install {{.Capability.DisplayName}}</h3></div>
+  <div class="card-body">
+    <form method="POST" action="/capabilities/{{.Capability.Name}}/install"
+          hx-post="/capabilities/{{.Capability.Name}}/install">
+      <input type="hidden" name="agent_id" value="{{.AgentID}}">
+      {{if not .AgentStatus.TierOK}}
+      <input type="hidden" name="upgrade_tier" value="true">
+      {{end}}
+
+      {{/* Credentials for unmet native tool dependencies */}}
+      {{range .AgentStatus.UnmetNativeTools}}
+      <div class="form-group">
+        <label for="cred_{{.Name}}">
+          {{.DisplayName}} credential
+          {{if .Auth.Instructions}}
+          <span style="font-weight: 400; color: var(--text-muted);">— {{.Auth.Instructions}}</span>
+          {{end}}
+        </label>
+        <input type="password" name="cred_{{.Name}}" id="cred_{{.Name}}" class="form-input"
+               placeholder="Enter {{.DisplayName}} API key or token">
+      </div>
+      {{end}}
+
+      {{/* Credentials for unmet REST integration dependencies */}}
+      {{range .AgentStatus.UnmetIntegrations}}
+      <div class="form-group">
+        <label for="cred_{{.Name}}">
+          {{.DisplayName}} credential
+          {{if .Auth.Instructions}}
+          <span style="font-weight: 400; color: var(--text-muted);">— {{.Auth.Instructions}}</span>
+          {{end}}
+        </label>
+        <input type="password" name="cred_{{.Name}}" id="cred_{{.Name}}" class="form-input"
+               placeholder="Enter {{.DisplayName}} API key or token">
+      </div>
+      {{end}}
+
+      {{/* Credential for the main capability itself (native tool or REST integration) */}}
+      {{if eq (print .Capability.Type) "native_tool"}}
+      {{if and .Capability.NativeTool .Capability.NativeTool.Auth.Type (ne .Capability.NativeTool.Auth.Type "none")}}
+      <div class="form-group">
+        <label for="cred_{{.Capability.Name}}">
+          {{.Capability.DisplayName}} credential
+          {{if .Capability.NativeTool.Auth.Instructions}}
+          <span style="font-weight: 400; color: var(--text-muted);">— {{.Capability.NativeTool.Auth.Instructions}}</span>
+          {{end}}
+        </label>
+        <input type="password" name="cred_{{.Capability.Name}}" id="cred_{{.Capability.Name}}" class="form-input"
+               placeholder="Enter {{.Capability.DisplayName}} API key or token">
+      </div>
+      {{end}}
+      {{end}}
+
+      {{if eq (print .Capability.Type) "integration"}}
+      {{if .Capability.Integration}}
+
+      {{/* Template variables (e.g. base URL) */}}
+      {{range .Capability.Integration.Variables}}
+      <div class="form-group">
+        <label for="var_{{.Name}}">
+          {{.Description}}
+          {{if .Required}}<span style="color: var(--danger);">*</span>{{end}}
+        </label>
+        <input type="text" name="var_{{.Name}}" id="var_{{.Name}}" class="form-input"
+               {{if .Required}}required{{end}}
+               {{if .Example}}placeholder="e.g. {{.Example}}"{{end}}
+               {{if .Default}}value="{{.Default}}"{{end}}>
+      </div>
+      {{end}}
+
+      {{/* Auth credential */}}
+      {{if and .Capability.Integration.Auth.Type (ne .Capability.Integration.Auth.Type "none") (ne .Capability.Integration.Auth.Type "oauth2")}}
+      <div class="form-group">
+        <label for="cred_{{.Capability.Name}}">
+          {{.Capability.DisplayName}} credential
+          {{if .Capability.Integration.Auth.Instructions}}
+          <span style="font-weight: 400; color: var(--text-muted);">— {{.Capability.Integration.Auth.Instructions}}</span>
+          {{end}}
+        </label>
+        <input type="password" name="cred_{{.Capability.Name}}" id="cred_{{.Capability.Name}}" class="form-input"
+               placeholder="Enter {{.Capability.DisplayName}} API key or token">
+      </div>
+      {{end}}
+
+      {{end}}
+      {{end}}
+
+      <button type="submit" class="btn btn-primary">Install</button>
+    </form>
+  </div>
+</div>
+
+{{end}}{{/* end if .AgentStatus.Installed */}}
+{{end}}{{/* end if .AgentID and .AgentStatus */}}
+{{end}}

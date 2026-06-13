@@ -1,0 +1,314 @@
+{{define "audit-index"}}
+<div class="page-header">
+  <div>
+    <h2>Audit Log</h2>
+    <p>Real-time audit event stream</p>
+  </div>
+  <div style="display: flex; gap: 8px; align-items: center;">
+    <span id="audit-status" class="badge badge-stopped">Paused</span>
+    <button id="audit-live-toggle" class="btn btn-primary btn-sm" onclick="toggleAuditStream()">Go Live</button>
+  </div>
+</div>
+
+<div class="card" style="margin-bottom: 1rem;">
+  <div class="card-body" style="display: flex; gap: 12px; flex-wrap: wrap; align-items: flex-end;">
+    <div class="form-group" style="margin-bottom: 0; flex: 1; min-width: 150px;">
+      <label for="audit-filter-agent">Agent</label>
+      <select id="audit-filter-agent" class="form-input" onchange="restartAuditStream(); filterAuditPage();">
+        <option value="">All agents</option>
+        {{range .Agents}}
+        <option value="{{.ID}}" {{if eq $.AgentFilter .ID}}selected{{end}}>{{.Name}}</option>
+        {{end}}
+      </select>
+    </div>
+    <div class="form-group" style="margin-bottom: 0; flex: 1; min-width: 150px;">
+      <label for="audit-filter-decision">Decision</label>
+      <select id="audit-filter-decision" class="form-input" onchange="restartAuditStream(); filterAuditPage();">
+        <option value="">All decisions</option>
+        <option value="allowed" {{if eq $.DecisionFilter "allowed"}}selected{{end}}>Allowed</option>
+        <option value="denied" {{if eq $.DecisionFilter "denied"}}selected{{end}}>Denied</option>
+        <option value="success" {{if eq $.DecisionFilter "success"}}selected{{end}}>Success</option>
+        <option value="failure" {{if eq $.DecisionFilter "failure"}}selected{{end}}>Failure</option>
+      </select>
+    </div>
+    <div class="form-group" style="margin-bottom: 0; flex: 1; min-width: 150px;">
+      <label for="audit-filter-level">Risk Level</label>
+      <select id="audit-filter-level" class="form-input" onchange="restartAuditStream(); filterAuditPage();">
+        <option value="">All levels</option>
+        <option value="low" {{if eq $.RiskLevelFilter "low"}}selected{{end}}>Low</option>
+        <option value="medium" {{if eq $.RiskLevelFilter "medium"}}selected{{end}}>Medium</option>
+        <option value="high" {{if eq $.RiskLevelFilter "high"}}selected{{end}}>High</option>
+        <option value="critical" {{if eq $.RiskLevelFilter "critical"}}selected{{end}}>Critical</option>
+      </select>
+    </div>
+  </div>
+</div>
+
+<div class="table-wrap">
+  <table>
+    <thead>
+      <tr>
+        <th>Time</th>
+        <th>Agent</th>
+        <th>Event</th>
+        <th>Action</th>
+        <th>Details</th>
+        <th>Decision</th>
+        <th>Risk</th>
+      </tr>
+    </thead>
+    <tbody id="audit-table-body">
+      {{template "audit-rows" .}}
+    </tbody>
+  </table>
+</div>
+
+<script nonce="{{.Nonce}}">
+(function() {
+  var es = null;
+  var isLive = false;
+  var autoScroll = true;
+  var maxRows = 200;
+
+  window.toggleAuditStream = function() {
+    if (isLive) {
+      stopStream();
+    } else {
+      startStream();
+    }
+  };
+
+  window.restartAuditStream = function() {
+    if (isLive) {
+      stopStream();
+      startStream();
+    }
+  };
+
+  window.filterAuditPage = function() {
+    var agentId = document.getElementById('audit-filter-agent').value;
+    var decision = document.getElementById('audit-filter-decision').value;
+    var riskLevel = document.getElementById('audit-filter-level').value;
+    var params = new URLSearchParams();
+    if (agentId) params.set('agent_id', agentId);
+    if (decision) params.set('decision', decision);
+    if (riskLevel) params.set('risk_level', riskLevel);
+    var url = '/audit';
+    if (params.toString()) url += '?' + params.toString();
+    window.location.href = url;
+  };
+
+  function startStream() {
+    var agentId = document.getElementById('audit-filter-agent').value;
+    var level = document.getElementById('audit-filter-level').value;
+    var decision = document.getElementById('audit-filter-decision').value;
+    var params = new URLSearchParams();
+    if (agentId) params.set('agent_id', agentId);
+    if (level) params.set('level', level);
+    if (decision) params.set('decision', decision);
+
+    var url = '/audit/stream';
+    if (params.toString()) url += '?' + params.toString();
+
+    es = new EventSource(url);
+    es.addEventListener('audit', function(e) {
+      var entry = JSON.parse(e.data);
+      prependRow(entry);
+    });
+    es.onerror = function() {
+      setStatus('error');
+    };
+    es.onopen = function() {
+      setStatus('live');
+    };
+
+    isLive = true;
+    document.getElementById('audit-live-toggle').textContent = 'Pause';
+    setStatus('connecting');
+  }
+
+  function stopStream() {
+    if (es) {
+      es.close();
+      es = null;
+    }
+    isLive = false;
+    document.getElementById('audit-live-toggle').textContent = 'Go Live';
+    setStatus('paused');
+  }
+
+  function setStatus(state) {
+    var el = document.getElementById('audit-status');
+    if (state === 'live') {
+      el.className = 'badge badge-running';
+      el.textContent = 'Live';
+    } else if (state === 'connecting') {
+      el.className = 'badge badge-info';
+      el.textContent = 'Connecting...';
+    } else if (state === 'error') {
+      el.className = 'badge badge-error';
+      el.textContent = 'Disconnected';
+    } else {
+      el.className = 'badge badge-stopped';
+      el.textContent = 'Paused';
+    }
+  }
+
+  function prependRow(entry) {
+    var tbody = document.getElementById('audit-table-body');
+    var row = document.createElement('tr');
+    row.style.animation = 'fadeIn 0.3s ease-in';
+
+    var ts = new Date(entry.timestamp);
+    var timeStr = ts.toLocaleDateString('en-US', {month: 'short', day: '2-digit'}) + ' ' +
+                  ts.toLocaleTimeString('en-US', {hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit'});
+
+    var decisionBadge = '';
+    if (entry.decision) {
+      var cls = entry.decision === 'allowed' ? 'badge-running' : entry.decision === 'denied' ? 'badge-error' : 'badge-stopped';
+      decisionBadge = '<span class="badge ' + cls + '">' + entry.decision + '</span>';
+    }
+
+    var riskBadge = '';
+    if (entry.risk_level) {
+      var rcls = (entry.risk_level === 'critical' || entry.risk_level === 'high') ? 'badge-error' : entry.risk_level === 'medium' ? 'badge-info' : 'badge-muted';
+      riskBadge = '<span class="badge ' + rcls + '">' + entry.risk_level + '</span>';
+    }
+
+    var agentCell = entry.agent_id ? '<span class="text-mono">' + entry.agent_id + '</span>' : '<span style="color: var(--text-muted);">system</span>';
+
+    row.setAttribute('hx-get', '/audit/' + entry.id);
+    row.setAttribute('hx-target', 'body');
+    row.setAttribute('hx-swap', 'beforeend');
+    row.style.cursor = 'pointer';
+
+    row.innerHTML =
+      '<td style="white-space: nowrap; font-size: 12px;">' + timeStr + '</td>' +
+      '<td style="font-size: 12px;">' + agentCell + '</td>' +
+      '<td><span class="badge badge-default">' + (entry.event_type || '') + '</span></td>' +
+      '<td>' + (entry.action || '') + '</td>' +
+      '<td style="max-width: 300px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">' + (entry.details || '') + '</td>' +
+      '<td>' + decisionBadge + '</td>' +
+      '<td>' + riskBadge + '</td>';
+
+    tbody.insertBefore(row, tbody.firstChild);
+    htmx.process(row);
+
+    // Trim excess rows.
+    while (tbody.children.length > maxRows) {
+      tbody.removeChild(tbody.lastChild);
+    }
+  }
+})();
+
+// Open audit detail dialog when HTMX appends it to body
+document.body.addEventListener('htmx:afterSwap', function(e) {
+  if (e.detail.target === document.body) {
+    var dialog = document.body.querySelector('dialog.edit-section-dialog:not([open])');
+    if (dialog) dialog.showModal();
+  }
+});
+</script>
+
+{{end}}
+
+{{define "audit-rows"}}
+{{range .AuditEntries}}
+<tr hx-get="/audit/{{.ID}}" hx-target="body" hx-swap="beforeend" style="cursor: pointer;">
+  <td style="white-space: nowrap; font-size: 12px;">{{localTime .Timestamp "Jan 02 15:04:05"}}</td>
+  <td style="font-size: 12px;">{{if .AgentID}}<span class="text-mono">{{.AgentID}}</span>{{else}}<span style="color: var(--text-muted);">system</span>{{end}}</td>
+  <td><span class="badge badge-default">{{.EventType}}</span></td>
+  <td>{{.Action}}</td>
+  <td style="max-width: 300px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{{.Details}}</td>
+  <td>
+    {{if .Decision}}
+    <span class="badge {{if eq .Decision "allowed"}}badge-running{{else if eq .Decision "denied"}}badge-error{{else}}badge-stopped{{end}}">{{.Decision}}</span>
+    {{end}}
+  </td>
+  <td>
+    {{if .RiskLevel}}
+    <span class="badge {{if eq .RiskLevel "critical"}}badge-error{{else if eq .RiskLevel "high"}}badge-error{{else if eq .RiskLevel "medium"}}badge-info{{else}}badge-muted{{end}}">{{.RiskLevel}}</span>
+    {{end}}
+  </td>
+</tr>
+{{end}}
+{{if .HasMore}}
+<tr id="audit-load-more-row">
+  <td colspan="7" style="text-align: center; padding: 12px;">
+    <button class="btn btn-secondary btn-sm"
+            hx-get="/audit/entries?offset={{.NextOffset}}{{if .AgentFilter}}&agent_id={{.AgentFilter}}{{end}}{{if .DecisionFilter}}&decision={{.DecisionFilter}}{{end}}{{if .RiskLevelFilter}}&risk_level={{.RiskLevelFilter}}{{end}}"
+            hx-target="#audit-load-more-row"
+            hx-swap="outerHTML">
+      Load More
+    </button>
+  </td>
+</tr>
+{{end}}
+{{end}}
+
+{{define "audit-entries-fragment"}}
+{{range .AuditEntries}}
+<tr hx-get="/audit/{{.ID}}" hx-target="body" hx-swap="beforeend" style="cursor: pointer;">
+  <td style="white-space: nowrap; font-size: 12px;">{{localTime .Timestamp "Jan 02 15:04:05"}}</td>
+  <td style="font-size: 12px;">{{if .AgentID}}<span class="text-mono">{{.AgentID}}</span>{{else}}<span style="color: var(--text-muted);">system</span>{{end}}</td>
+  <td><span class="badge badge-default">{{.EventType}}</span></td>
+  <td>{{.Action}}</td>
+  <td style="max-width: 300px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{{.Details}}</td>
+  <td>
+    {{if .Decision}}
+    <span class="badge {{if eq .Decision "allowed"}}badge-running{{else if eq .Decision "denied"}}badge-error{{else}}badge-stopped{{end}}">{{.Decision}}</span>
+    {{end}}
+  </td>
+  <td>
+    {{if .RiskLevel}}
+    <span class="badge {{if eq .RiskLevel "critical"}}badge-error{{else if eq .RiskLevel "high"}}badge-error{{else if eq .RiskLevel "medium"}}badge-info{{else}}badge-muted{{end}}">{{.RiskLevel}}</span>
+    {{end}}
+  </td>
+</tr>
+{{end}}
+{{if .HasMore}}
+<tr id="audit-load-more-row">
+  <td colspan="7" style="text-align: center; padding: 12px;">
+    <button class="btn btn-secondary btn-sm"
+            hx-get="/audit/entries?offset={{.NextOffset}}{{if .AgentFilter}}&agent_id={{.AgentFilter}}{{end}}{{if .DecisionFilter}}&decision={{.DecisionFilter}}{{end}}{{if .RiskLevelFilter}}&risk_level={{.RiskLevelFilter}}{{end}}"
+            hx-target="#audit-load-more-row"
+            hx-swap="outerHTML">
+      Load More
+    </button>
+  </td>
+</tr>
+{{end}}
+{{end}}
+
+{{define "audit-detail-modal"}}
+<dialog class="edit-section-dialog" style="max-width: 600px;">
+  <div class="dialog-header">
+    <h3>Audit Entry Detail</h3>
+    <button type="button" class="btn-edit-section" onclick="this.closest('dialog').close(); this.closest('dialog').remove();" title="Close">&times;</button>
+  </div>
+  <div class="card-body" style="padding: 16px;">
+    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 12px; font-size: 13px;">
+      <div><strong>ID:</strong> <span class="text-mono" style="font-size: 11px;">{{.ID}}</span></div>
+      <div><strong>Timestamp:</strong> {{localTime .Timestamp "2006-01-02 15:04:05"}}</div>
+      <div><strong>Agent:</strong> {{if .AgentID}}<span class="text-mono">{{.AgentID}}</span>{{else}}<span style="color: var(--text-muted);">system</span>{{end}}</div>
+      <div><strong>Event Type:</strong> <span class="badge badge-default">{{.EventType}}</span></div>
+      <div><strong>Action:</strong> {{.Action}}</div>
+      <div><strong>Resource:</strong> {{if .Resource}}{{.Resource}}{{else}}<span style="color: var(--text-muted);">-</span>{{end}}</div>
+      <div><strong>Decision:</strong>
+        {{if .Decision}}
+        <span class="badge {{if eq .Decision "allowed"}}badge-running{{else if eq .Decision "denied"}}badge-error{{else}}badge-stopped{{end}}">{{.Decision}}</span>
+        {{else}}<span style="color: var(--text-muted);">-</span>{{end}}
+      </div>
+      <div><strong>Risk Level:</strong>
+        {{if .RiskLevel}}
+        <span class="badge {{if eq .RiskLevel "critical"}}badge-error{{else if eq .RiskLevel "high"}}badge-error{{else if eq .RiskLevel "medium"}}badge-info{{else}}badge-muted{{end}}">{{.RiskLevel}}</span>
+        {{else}}<span style="color: var(--text-muted);">-</span>{{end}}
+      </div>
+    </div>
+    <div>
+      <strong>Details:</strong>
+      <pre style="background: var(--stripe-color); border-radius: 4px; padding: 12px; white-space: pre-wrap; word-break: break-all; font-family: monospace; font-size: 13px; max-height: 400px; overflow-y: auto; margin-top: 6px;">{{.Details}}</pre>
+    </div>
+  </div>
+</dialog>
+{{end}}

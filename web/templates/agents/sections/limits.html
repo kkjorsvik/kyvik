@@ -1,0 +1,174 @@
+{{define "card-limits"}}
+<div class="card" id="card-limits">
+  <div class="card-header">
+    <h3>Limits</h3>
+    {{if can .User "agent.edit"}}
+    <button class="btn-edit-section"
+            hx-get="/agents/{{.Agent.ID}}/edit/limits"
+            hx-target="body" hx-swap="beforeend"
+            title="Edit Limits">&#9998;</button>
+    {{end}}
+  </div>
+  <div class="card-body">
+    {{if .Agent.Limits.MaxTokensPerDay}}
+    <div class="form-group" style="margin-bottom: 12px;">
+      <label>Tokens / Day</label>
+      <div>
+        {{with .Budget}}
+        <span class="text-mono">{{.TokensToday}} / {{$.Agent.Limits.MaxTokensPerDay}}</span>
+        <div class="progress-bar mt-1">
+          <div class="progress-fill" style="width: {{pct .TokensToday $.Agent.Limits.MaxTokensPerDay}}%;"></div>
+        </div>
+        {{else}}
+        <span class="text-mono">0 / {{$.Agent.Limits.MaxTokensPerDay}}</span>
+        {{end}}
+      </div>
+    </div>
+    {{end}}
+    {{if .Agent.Limits.MaxTokensPerMonth}}
+    <div class="form-group" style="margin-bottom: 12px;">
+      <label>Tokens / Month</label>
+      <div>
+        {{with .Budget}}
+        <span class="text-mono">{{.TokensThisMonth}} / {{$.Agent.Limits.MaxTokensPerMonth}}</span>
+        <div class="progress-bar mt-1">
+          <div class="progress-fill" style="width: {{pct .TokensThisMonth $.Agent.Limits.MaxTokensPerMonth}}%;"></div>
+        </div>
+        {{else}}
+        <span class="text-mono">0 / {{$.Agent.Limits.MaxTokensPerMonth}}</span>
+        {{end}}
+      </div>
+    </div>
+    {{end}}
+    {{if .Agent.Limits.MaxSpendPerDay}}
+    <div class="form-group" style="margin-bottom: 12px;">
+      <label>Spend / Day</label>
+      <div>
+        {{with .Budget}}
+        <span class="text-mono">${{printf "%.4f" .DailyUsed}} / ${{printf "%.2f" $.Agent.Limits.MaxSpendPerDay}}</span>
+        <div class="progress-bar mt-1">
+          <div class="progress-fill" style="width: {{pctf .DailyUsed $.Agent.Limits.MaxSpendPerDay}}%;"></div>
+        </div>
+        {{else}}
+        <span class="text-mono">$0.00 / ${{printf "%.2f" $.Agent.Limits.MaxSpendPerDay}}</span>
+        {{end}}
+      </div>
+    </div>
+    {{end}}
+    {{if .Agent.Limits.MaxSpendPerMonth}}
+    <div class="form-group" style="margin-bottom: 12px;">
+      <label>Spend / Month</label>
+      <div>
+        {{with .Budget}}
+        <span class="text-mono">${{printf "%.4f" .MonthlyUsed}} / ${{printf "%.2f" $.Agent.Limits.MaxSpendPerMonth}}</span>
+        <div class="progress-bar mt-1">
+          <div class="progress-fill" style="width: {{pctf .MonthlyUsed $.Agent.Limits.MaxSpendPerMonth}}%;"></div>
+        </div>
+        {{else}}
+        <span class="text-mono">$0.00 / ${{printf "%.2f" $.Agent.Limits.MaxSpendPerMonth}}</span>
+        {{end}}
+      </div>
+    </div>
+    {{end}}
+    {{if and (not .Agent.Limits.MaxTokensPerDay) (not .Agent.Limits.MaxTokensPerMonth) (not .Agent.Limits.MaxSpendPerDay) (not .Agent.Limits.MaxSpendPerMonth)}}
+    <p style="color: var(--text-muted);">No limits configured.</p>
+    {{end}}
+    <div class="form-group" style="margin-bottom: 12px;">
+      <label>Memory</label>
+      <span class="text-mono">Limit: {{.Agent.MemoryLimit}} | History Limit: {{.Agent.HistoryLimit}} | Auto-extract: {{if .Agent.AutoExtractMemories}}Yes{{else}}No{{end}}</span>
+    </div>
+    <div class="form-group" style="margin-bottom: 0;">
+      <label>Attachment Max Size</label>
+      <span class="text-mono">{{if .Agent.AttachmentMaxSizeMB}}{{.Agent.AttachmentMaxSizeMB}} MB{{else}}25 MB (default){{end}}</span>
+    </div>
+  </div>
+</div>
+{{end}}
+
+{{define "modal-limits"}}
+<dialog class="edit-section-dialog">
+  <form hx-post="/agents/{{.Agent.ID}}/edit/limits"
+        hx-target="#card-limits" hx-swap="outerHTML">
+    <div class="dialog-header">
+      <h3>Edit Limits</h3>
+      <button type="button" class="btn-edit-section" onclick="this.closest('dialog').close()" title="Close">&times;</button>
+    </div>
+    <div class="dialog-body">
+      <div class="form-group">
+        <label for="edit-limits-max-tokens-per-day">Max Tokens per Day</label>
+        <input type="number" id="edit-limits-max-tokens-per-day" name="max_tokens_per_day" class="form-input" value="{{.Agent.Limits.MaxTokensPerDay}}">
+      </div>
+      <div class="form-group">
+        <label for="edit-limits-max-tokens-per-month">Max Tokens per Month</label>
+        <input type="number" id="edit-limits-max-tokens-per-month" name="max_tokens_per_month" class="form-input" value="{{.Agent.Limits.MaxTokensPerMonth}}">
+      </div>
+      <div class="form-group">
+        <label for="edit-limits-max-spend-per-day">Max Spend per Day (USD)</label>
+        <input type="number" step="0.01" id="edit-limits-max-spend-per-day" name="max_spend_per_day" class="form-input" value="{{printf "%.2f" .Agent.Limits.MaxSpendPerDay}}">
+      </div>
+      <div class="form-group">
+        <label for="edit-limits-max-spend-per-month">Max Spend per Month (USD)</label>
+        <input type="number" step="0.01" id="edit-limits-max-spend-per-month" name="max_spend_per_month" class="form-input" value="{{printf "%.2f" .Agent.Limits.MaxSpendPerMonth}}">
+      </div>
+      <div class="form-group">
+        <label for="edit-limits-memory-limit">Memory Limit</label>
+        <input type="number" id="edit-limits-memory-limit" name="memory_limit" class="form-input" value="{{.Agent.MemoryLimit}}">
+      </div>
+      <div class="form-group">
+        <label for="edit-limits-history-limit">History Limit</label>
+        <input type="number" id="edit-limits-history-limit" name="history_limit" class="form-input" value="{{.Agent.HistoryLimit}}">
+      </div>
+      <div class="form-group">
+        <label>
+          <input type="checkbox" name="auto_extract_memories" value="true" {{if .Agent.AutoExtractMemories}}checked{{end}}>
+          Auto-extract Memories
+        </label>
+      </div>
+      <fieldset style="border: 1px solid var(--border-color); border-radius: 6px; padding: 12px; margin-top: 8px;">
+        <legend style="font-weight: 600; font-size: 13px; padding: 0 6px;">Memory Extraction</legend>
+        <div class="form-group">
+          <label for="edit-limits-max-memories">Max Memories</label>
+          <input type="number" id="edit-limits-max-memories" name="max_memories" class="form-input" value="{{.Agent.MaxMemories}}" min="0">
+          <small class="form-hint">Maximum number of memories to store per agent. 0 for unlimited.</small>
+        </div>
+        <div class="form-group">
+          <label for="edit-limits-memory-extraction-interval">Extraction Interval (messages)</label>
+          <input type="number" id="edit-limits-memory-extraction-interval" name="memory_extraction_interval" class="form-input" value="{{.Agent.MemoryExtractionInterval}}" min="0">
+          <small class="form-hint">Extract memories every N messages. 0 to use default.</small>
+        </div>
+        <div class="form-group">
+          <label for="edit-limits-memory-max-extractions">Max Extractions per Run</label>
+          <input type="number" id="edit-limits-memory-max-extractions" name="memory_max_extractions_per_run" class="form-input" value="{{.Agent.MemoryMaxExtractionsPerRun}}" min="0">
+          <small class="form-hint">Maximum memories to extract in a single run. 0 to use default.</small>
+        </div>
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+          <div class="form-group">
+            <label for="edit-limits-memory-duplicate-threshold">Duplicate Threshold</label>
+            <input type="number" step="0.01" id="edit-limits-memory-duplicate-threshold" name="memory_duplicate_threshold" class="form-input" value="{{printf "%.2f" .Agent.MemoryDuplicateThreshold}}" min="0" max="1">
+          </div>
+          <div class="form-group">
+            <label for="edit-limits-memory-similar-threshold">Similar Threshold</label>
+            <input type="number" step="0.01" id="edit-limits-memory-similar-threshold" name="memory_similar_threshold" class="form-input" value="{{printf "%.2f" .Agent.MemorySimilarThreshold}}" min="0" max="1">
+          </div>
+        </div>
+      </fieldset>
+      <div class="form-group">
+        <label>
+          <input type="checkbox" name="timestamp_messages" value="true" {{if .Agent.TimestampMessages}}checked{{end}}>
+          Timestamp Messages
+        </label>
+        <small class="form-hint">Prepend current UTC time to user messages so the agent knows when messages arrive.</small>
+      </div>
+      <div class="form-group">
+        <label for="edit-limits-attachment-max-size-mb">Attachment Max Size (MB)</label>
+        <input type="number" id="edit-limits-attachment-max-size-mb" name="attachment_max_size_mb" class="form-input" value="{{.Agent.AttachmentMaxSizeMB}}" min="0" max="100">
+        <small class="form-hint">Maximum file attachment size in MB. 0 or blank uses the default (25 MB).</small>
+      </div>
+    </div>
+    <div class="dialog-footer">
+      <button type="button" class="btn btn-secondary" onclick="this.closest('dialog').close()">Cancel</button>
+      <button type="submit" class="btn btn-primary">Save</button>
+    </div>
+  </form>
+</dialog>
+{{end}}

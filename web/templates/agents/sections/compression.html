@@ -1,0 +1,92 @@
+{{define "card-compression"}}
+<div id="card-compression">
+<div class="card mt-2">
+  <div class="card-header">
+    <h3>Conversation Compression</h3>
+    {{if .CompressionConfig.Enabled}}<span class="badge badge-running">enabled</span>
+    {{else}}<span class="badge badge-stopped">disabled</span>{{end}}
+    {{if can .User "agent.edit"}}
+    <button class="btn-edit-section"
+            hx-get="/agents/{{.Agent.ID}}/edit/compression"
+            hx-target="body" hx-swap="beforeend"
+            title="Edit Compression">&#9998;</button>
+    {{end}}
+  </div>
+  <div id="compression-section">
+    <div class="card-body">
+      {{if .CompressionConfig.Enabled}}
+      <div class="form-group" style="margin-bottom: 0.5rem;">
+        <label>Message Threshold</label>
+        <span class="text-mono">{{.CompressionConfig.MessageThreshold}}</span>
+      </div>
+      <div class="form-group" style="margin-bottom: 0.5rem;">
+        <label>Token Threshold</label>
+        <span class="text-mono">{{.CompressionConfig.TokenThresholdPct}}%</span>
+      </div>
+      <div class="form-group" style="margin-bottom: 0.5rem;">
+        <label>Keep Recent Messages</label>
+        <span class="text-mono">{{.CompressionConfig.KeepRecentMessages}}</span>
+      </div>
+      {{if .CompressionConfig.Model}}
+      <div class="form-group" style="margin-bottom: 0.5rem;">
+        <label>Model Override</label>
+        <span class="text-mono">{{.CompressionConfig.Model}}</span>
+      </div>
+      {{end}}
+      {{else}}
+      <p style="color: var(--text-muted);">Conversation compression is not configured. Use the edit button above to enable.</p>
+      {{end}}
+    </div>
+  </div>
+</div>
+</div>
+{{end}}
+
+{{define "modal-compression"}}
+<dialog class="edit-section-dialog">
+  <form hx-post="/agents/{{.Agent.ID}}/edit/compression"
+        hx-target="#card-compression" hx-swap="outerHTML">
+    <div class="dialog-header">
+      <h3>Edit Conversation Compression</h3>
+      <button type="button" class="btn-edit-section" onclick="this.closest('dialog').close()" title="Close">&times;</button>
+    </div>
+    <div class="dialog-body">
+      <div class="form-group">
+        <label style="display: flex; align-items: center; gap: 6px; cursor: pointer;">
+          <input type="checkbox" name="compression_enabled" value="true" {{if .CompressionConfig.Enabled}}checked{{end}}>
+          Enabled
+        </label>
+        <small style="color: var(--text-muted);">Automatically compress long conversations to save context window space.</small>
+      </div>
+      <div class="form-group">
+        <label for="edit-compression-msg-threshold">Message Threshold</label>
+        <input type="number" id="edit-compression-msg-threshold" name="compression_message_threshold" class="form-input"
+               value="{{if .CompressionConfig.MessageThreshold}}{{.CompressionConfig.MessageThreshold}}{{else}}20{{end}}" min="1">
+        <small style="color: var(--text-muted);">Compress when conversation exceeds this many messages.</small>
+      </div>
+      <div class="form-group">
+        <label for="edit-compression-token-pct">Token Threshold %</label>
+        <input type="number" id="edit-compression-token-pct" name="compression_token_threshold_pct" class="form-input"
+               value="{{if .CompressionConfig.TokenThresholdPct}}{{.CompressionConfig.TokenThresholdPct}}{{else}}70{{end}}" min="1" max="100">
+        <small style="color: var(--text-muted);">Compress when token usage exceeds this percentage of the context budget.</small>
+      </div>
+      <div class="form-group">
+        <label for="edit-compression-keep-recent">Keep Recent Messages</label>
+        <input type="number" id="edit-compression-keep-recent" name="compression_keep_recent" class="form-input"
+               value="{{if .CompressionConfig.KeepRecentMessages}}{{.CompressionConfig.KeepRecentMessages}}{{else}}10{{end}}" min="1">
+        <small style="color: var(--text-muted);">Number of recent messages to keep uncompressed.</small>
+      </div>
+      <div class="form-group">
+        <label for="edit-compression-model">Model Override</label>
+        <input type="text" id="edit-compression-model" name="compression_model" class="form-input"
+               value="{{.CompressionConfig.Model}}" placeholder="(use agent default)">
+        <small style="color: var(--text-muted);">Optional: use a specific model for compression (e.g. a cheaper/faster model).</small>
+      </div>
+    </div>
+    <div class="dialog-footer">
+      <button type="button" class="btn btn-secondary" onclick="this.closest('dialog').close()">Cancel</button>
+      <button type="submit" class="btn btn-primary">Save</button>
+    </div>
+  </form>
+</dialog>
+{{end}}

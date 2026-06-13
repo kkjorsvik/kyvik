@@ -1,0 +1,173 @@
+{{define "backup"}}
+<div class="page-header">
+  <div>
+    <h2>Backup & Restore</h2>
+    <p>Full-instance backups and per-agent export/import</p>
+  </div>
+  {{if .Enabled}}
+  <div>
+    <button class="btn btn-primary"
+            hx-post="/backup/now"
+            hx-target="#backup-result"
+            hx-swap="innerHTML"
+            hx-indicator="#backup-spinner"
+            hx-confirm="Create a backup now?">
+      Backup Now
+    </button>
+    <span id="backup-spinner" class="htmx-indicator" style="margin-left: 8px;">Backing up...</span>
+  </div>
+  {{end}}
+</div>
+
+{{if not .Enabled}}
+<div class="card">
+  <div class="card-body">
+    <p style="color: var(--text-muted);">Backup manager is not configured. Enable it in <code>kyvik.yaml</code> under the <code>backup</code> section.</p>
+  </div>
+</div>
+{{else}}
+
+<!-- Backup Settings -->
+<div class="card" style="margin-bottom: 24px;">
+  <h3 style="margin-bottom: 16px;">Backup Settings</h3>
+  <table class="table">
+    <thead>
+      <tr><th>Setting</th><th>Value</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>Schedule</td><td><code>{{.Config.Schedule}}</code></td></tr>
+      <tr><td>Retention</td><td>Keep last {{.Config.Retention}} backups</td></tr>
+      <tr><td>Path</td><td><code>{{.Config.Path}}</code></td></tr>
+    </tbody>
+  </table>
+</div>
+
+<!-- Last Backup Result + Backup List -->
+<div id="backup-result">
+  {{template "backup-result" .}}
+</div>
+
+<!-- Restore Section -->
+<div class="card" style="margin-bottom: 24px;">
+  <h3 style="margin-bottom: 16px;">Restore from Backup</h3>
+  <div class="card-body">
+    <p style="color: var(--text-secondary); margin-bottom: 12px;">Upload a backup archive to validate and restore. <strong>Warning:</strong> Restoring replaces the current database. A restart is required after restore.</p>
+    <form hx-post="/backup/restore" hx-target="#restore-result" hx-encoding="multipart/form-data">
+      <div class="form-group">
+        <label>Backup File (.tar.gz)</label>
+        <input type="file" name="backup_file" accept=".tar.gz,.gz" required>
+      </div>
+      <button type="submit" class="btn btn-secondary">Validate & Restore</button>
+    </form>
+    <div id="restore-result" style="margin-top: 12px;"></div>
+  </div>
+</div>
+
+<!-- Agent Import -->
+<div class="card">
+  <h3 style="margin-bottom: 16px;">Import Agent</h3>
+  <div class="card-body">
+    <p style="color: var(--text-secondary); margin-bottom: 12px;">Import an agent from an encrypted export archive. A new agent will be created with a fresh ID.</p>
+    <form hx-post="/agents/import" hx-target="#import-result" hx-encoding="multipart/form-data">
+      <div class="form-group">
+        <label>Agent Export File (.tar.gz)</label>
+        <input type="file" name="agent_file" accept=".tar.gz,.gz" required>
+      </div>
+      <div class="form-group">
+        <label>Passphrase</label>
+        <input type="password" name="passphrase" placeholder="Enter the passphrase used during export" required>
+      </div>
+      <button type="submit" class="btn btn-primary">Import Agent</button>
+    </form>
+    <div id="import-result" style="margin-top: 12px;"></div>
+  </div>
+</div>
+
+{{end}}
+{{end}}
+
+{{define "backup-result"}}
+{{if .LastResult}}
+<div class="card" style="margin-bottom: 24px;">
+  <h3 style="margin-bottom: 16px;">Last Backup</h3>
+  <div style="display: flex; gap: 16px; margin-bottom: 16px; flex-wrap: wrap;">
+    <span class="badge badge-info">{{localTime .LastResult.Timestamp "Jan 02 15:04"}}</span>
+    <span class="badge badge-default">Duration: {{.LastResult.Duration}}</span>
+    <span class="badge badge-default">Size: {{.LastResult.SizeHuman}}</span>
+    <span class="badge badge-default">Agents: {{.LastResult.AgentCount}}</span>
+    {{if .LastResult.Error}}
+    <span class="badge badge-critical">Error</span>
+    {{end}}
+  </div>
+  {{if .LastResult.Error}}
+  <div class="alert alert-error" style="padding: 8px 12px;">
+    {{.LastResult.Error}}
+  </div>
+  {{end}}
+</div>
+{{end}}
+
+{{template "backup-list" .}}
+{{end}}
+
+{{define "backup-list"}}
+{{if .Backups}}
+<div class="card" style="margin-bottom: 24px;">
+  <h3 style="margin-bottom: 16px;">Backup Files</h3>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Filename</th>
+          <th>Size</th>
+          <th>Created</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {{range .Backups}}
+        <tr>
+          <td><span class="text-mono">{{.Name}}</span></td>
+          <td>{{.SizeHuman}}</td>
+          <td>{{localTime .ModTime "Jan 02 15:04"}}</td>
+          <td style="display: flex; gap: 8px;">
+            <a href="/backup/download/{{.Name}}" class="btn btn-sm btn-secondary">Download</a>
+            <button class="btn btn-sm btn-danger"
+                    hx-post="/backup/delete/{{.Name}}"
+                    hx-target="closest .card"
+                    hx-swap="outerHTML"
+                    hx-confirm="Delete backup '{{.Name}}'?">Delete</button>
+          </td>
+        </tr>
+        {{end}}
+      </tbody>
+    </table>
+  </div>
+</div>
+{{end}}
+{{end}}
+
+{{define "backup-restore-result"}}
+{{if .Error}}
+<div class="alert alert-error" style="padding: 8px 12px;">
+  {{.Error}}
+</div>
+{{else if .Meta}}
+<div class="alert alert-warning" style="padding: 12px;">
+  <strong>Backup validated:</strong> {{.Meta.AgentCount}} agents, created {{localTime .Meta.Timestamp "Jan 02 15:04"}}
+  <p style="margin-top: 8px;">{{.Warning}}</p>
+</div>
+{{end}}
+{{end}}
+
+{{define "backup-import-result"}}
+{{if .Error}}
+<div class="alert alert-error" style="padding: 8px 12px;">
+  Import failed: {{.Error}}
+</div>
+{{else if .Agent}}
+<div class="alert alert-success" style="padding: 8px 12px;">
+  Agent imported as <a href="/agents/{{.Agent.ID}}"><strong>{{.Agent.Name}}</strong></a> (ID: {{.Agent.ID}})
+</div>
+{{end}}
+{{end}}
