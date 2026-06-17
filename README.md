@@ -2,11 +2,11 @@
 
 A security-first, multi-agent AI framework written in Go.
 
-Kyvik provides a managed environment for running AI agents with built-in guardrails, a web dashboard, and native multi-agent isolation — all deployable as a single binary.
+Kyvik provides a managed environment for running AI agents with built-in guardrails, a web dashboard, and native multi-agent isolation — self-hosted as two static Go binaries (the server plus an isolated sandbox runner) with no runtime dependencies.
 
 ## Status
 
-**Pre-alpha.** Design phase. See [DESIGN.md](DESIGN.md) for the full architecture and planning document.
+**Active development.** Core implemented, MVP features in progress. See [DESIGN.md](DESIGN.md) for the full architecture and planning document.
 
 ## Core Principles
 
