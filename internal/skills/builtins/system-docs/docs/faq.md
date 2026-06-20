@@ -3,13 +3,13 @@
 ## General
 
 **What is Kyvik?**
-Kyvik is a security-first, multi-agent AI framework. It manages AI agent lifecycles with built-in guardrails, sandboxed execution, and a web dashboard, all deployable as a single binary.
+Kyvik is a security-first, multi-agent AI framework. It manages AI agent lifecycles with built-in guardrails, sandboxed execution, and a web dashboard, with no runtime dependencies beyond PostgreSQL.
 
 **What does the name mean?**
 Kyvik is named after the badger (Norwegian: grevling). Like a badger, it's compact, capable, and security-minded.
 
 **Do I need Docker to run Kyvik?**
-No. Kyvik compiles to a single binary. Docker is available as a deployment option but not required.
+No. Kyvik compiles to self-contained Go binaries (the main server and the sandbox runner). Docker is available as a deployment option but not required.
 
 ## Agents
 

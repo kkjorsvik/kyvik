@@ -8,7 +8,8 @@ By participating you agree to abide by our [Code of Conduct](CODE_OF_CONDUCT.md)
 
 ## Getting Started
 
-Kyvik is a single Go binary backed by PostgreSQL.
+Kyvik is written in Go and backed by PostgreSQL. It builds two binaries: the
+main server (`cmd/kyvik`) and the sandbox runner (`cmd/kyvik-sandbox`).
 
 **Prerequisites:**
 
@@ -73,7 +74,7 @@ When implementing features, follow these priorities (from `DESIGN.md`):
 2. **Accessible** — sensible defaults, usable by non-experts via the dashboard
 3. **Multi-agent native** — each agent isolated with its own identity,
    permissions, and sandbox
-4. **Go-native simplicity** — single binary, no runtime dependencies
+4. **Go-native simplicity** — self-contained binaries, no runtime dependencies
 
 `DESIGN.md` is the source of truth for architecture; `CLAUDE.md` has a concise
 map of the codebase layout and key patterns.
