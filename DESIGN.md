@@ -8,7 +8,7 @@
 
 ## 1. Overview
 
-Kyvik is a security-first, multi-agent AI framework written in Go. It provides a managed environment for running AI agents with built-in guardrails, a web dashboard for non-technical users, and native multi-agent isolation — self-contained, with no runtime dependencies beyond PostgreSQL.
+Kyvik is a security-first, multi-agent AI framework written in Go. It provides a managed environment for running AI agents with built-in guardrails, a web dashboard for non-technical users, and native multi-agent isolation — self-hosted as two static Go binaries (the server plus an isolated sandbox runner) with no runtime dependencies.
 
 ### Mascot & Identity
 
@@ -46,7 +46,11 @@ Existing AI agent frameworks fall into two camps, and neither is adequate:
 
 3. **Native multi-agent isolation.** Agents are isolated by design, not by workaround. Each agent has its own identity, permissions, execution sandbox, and communication boundaries.
 
+<<<<<<< HEAD
 4. **Go-native simplicity.** Self-contained deployment — a small set of static binaries. Low resource footprint. Goroutine-based concurrency for coordination. No runtime dependencies beyond the binaries themselves.
+=======
+4. **Go-native simplicity.** Self-hosted deployment as two static Go binaries (server + sandbox runner). Low resource footprint. Goroutine-based concurrency for coordination. No runtime dependencies beyond the binaries themselves.
+>>>>>>> main
 
 ---
 
@@ -1601,7 +1605,11 @@ These are decisions deferred intentionally, to be revisited as the project matur
 
 3. **Skill registry and distribution.** How are community skills published, discovered, and installed? What's the signing and verification process for the `verified` trust tier?
 
+<<<<<<< HEAD
 4. **Deployment targets.** Static binaries on bare metal are the starting point. Docker image? Kubernetes operator? Terraform modules? Prioritize based on community demand.
+=======
+4. **Deployment targets.** Static Go binaries on bare metal is the starting point. Docker image? Kubernetes operator? Terraform modules? Prioritize based on community demand.
+>>>>>>> main
 
 5. **Licensing model.** Open source? Source-available? Dual license with commercial tier? Depends on long-term product strategy.
 

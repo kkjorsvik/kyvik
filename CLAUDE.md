@@ -4,7 +4,11 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
+<<<<<<< HEAD
 Kyvik is a security-first, multi-agent AI framework written in Go. It manages AI agent lifecycles with built-in guardrails, sandboxed execution, and a web dashboard — self-contained, with no runtime dependencies beyond PostgreSQL. The project is in **pre-alpha/design phase** with interfaces defined but implementations mostly stubbed.
+=======
+Kyvik is a security-first, multi-agent AI framework written in Go. It manages AI agent lifecycles with built-in guardrails, sandboxed execution, and a web dashboard — self-hosted as two static Go binaries (the server plus an isolated sandbox runner) with no runtime dependencies. The project is in **active development**: the core runtime is implemented with MVP features in progress.
+>>>>>>> main
 
 ## Build & Development Commands
 
